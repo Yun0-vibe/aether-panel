@@ -1,0 +1,19 @@
+[Unit]
+Description=Aether game server daemon (Docker node agent)
+After=network-online.target docker.service
+Wants=network-online.target docker.service
+
+[Service]
+ExecStart=/opt/aether/daemon
+Environment=AETHER_TOKEN=CHANGE_ME
+Environment=AETHER_PORT=8080
+# config dir for server metadata (%h = daemon user's home)
+Environment=AETHER_CONFIG_DIR=%h/.aether
+Restart=always
+RestartSec=3
+User=aether
+# network access to veth usually needs root or docker group
+Group=docker
+
+[Install]
+WantedBy=multi-user.target

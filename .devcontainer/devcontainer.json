@@ -1,0 +1,16 @@
+{
+  "name": "Aether Panel",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:24",
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": { "version": "1.25" },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": { "version": "latest" }
+  },
+  "forwardPorts": [3000, 5173, 8080],
+  "portsAttributes": {
+    "3000": { "label": "Panel (API + client)", "onAutoForward": "openBrowser" },
+    "5173": { "label": "Client dev server", "onAutoForward": "silent" },
+    "8080": { "label": "Daemon", "onAutoForward": "invisible" }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "remoteEnv": { "AETHER_TOKEN": "dev-codespace-token" }
+}

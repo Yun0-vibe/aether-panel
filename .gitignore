@@ -1,0 +1,17 @@
+# node
+node_modules/
+dist/
+*.log
+
+# go
+daemon/bin/
+go.sum.bak
+
+# local data
+*.db
+*.db-wal
+*.db-shm
+.config/
+
+# env secrets
+.env
