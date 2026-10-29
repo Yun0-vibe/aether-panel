@@ -2,7 +2,6 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
 import { RequireAdmin, RequireAuth } from "./auth/Guards";
 import { ToastProvider } from "./components/Toasts";
-import { NavBar } from "./components/NavBar";
 import { Sidebar } from "./components/Sidebar";
 import { LoginPage, RegisterPage } from "./pages/AuthPages";
 import { Dashboard } from "./pages/Dashboard";
