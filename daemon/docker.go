@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -73,9 +74,7 @@ func (api *daemonAPI) ensureContainer(ctx context.Context, spec ServerSpec) erro
 	if spec.Command != "" {
 		cfg.Cmd = []string{"/bin/sh", "-c", spec.Command}
 	}
-	if spec.Env["SERVER_PORT"] != "" {
-		cfg.ExposedPorts = nat.PortSet{nat.Port(spec.Env["SERVER_PORT"] + "/tcp"): {}}
-	}
+	ports := effectivePorts(spec)
 
 	hostCfg := &container.HostConfig{
 		NetworkMode: "bridge",
@@ -97,10 +96,13 @@ func (api *daemonAPI) ensureContainer(ctx context.Context, spec ServerSpec) erro
 	if spec.CPUs > 0 {
 		hostCfg.NanoCPUs = int64(spec.CPUs * 1e9)
 	}
-	if spec.Env["SERVER_PORT"] != "" {
-		hostCfg.PortBindings[nat.Port(spec.Env["SERVER_PORT"]+"/tcp")] = []nat.PortBinding{
-			{HostIP: "0.0.0.0", HostPort: fmt.Sprint(spec.HostPort)},
-		}
+	if cfg.ExposedPorts == nil {
+		cfg.ExposedPorts = nat.PortSet{}
+	}
+	for _, ps := range ports {
+		p := nat.Port(fmt.Sprintf("%d/%s", ps.Port, ps.Protocol))
+		cfg.ExposedPorts[p] = struct{}{}
+		hostCfg.PortBindings[p] = []nat.PortBinding{{HostIP: "0.0.0.0", HostPort: fmt.Sprint(ps.Port)}}
 	}
 
 	created, err := api.docker.ContainerCreate(ctx, cfg, hostCfg, nil, nil, name)
@@ -108,6 +110,21 @@ func (api *daemonAPI) ensureContainer(ctx context.Context, spec ServerSpec) erro
 		return fmt.Errorf("container create failed: %w", err)
 	}
 	log.Printf("created container %s for server %s", created.ID[:12], spec.ID)
+	return nil
+}
+
+// effectivePorts resolves the explicit port list; falls back to the classic
+// single SERVER_PORT/tcp behavior for specs created before egg presets.
+func effectivePorts(spec ServerSpec) []PortSpec {
+	if len(spec.Ports) > 0 {
+		return spec.Ports
+	}
+	if sp := spec.Env["SERVER_PORT"]; sp != "" && spec.HostPort > 0 {
+		n, _ := strconv.Atoi(sp)
+		if n > 0 && n <= 65535 {
+			return []PortSpec{{Port: n, Protocol: "tcp"}}
+		}
+	}
 	return nil
 }
 

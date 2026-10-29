@@ -13,11 +13,19 @@ type ServerSpec struct {
 	Image    string            `json:"image"`
 	Env      map[string]string `json:"env,omitempty"`
 	HostPort int               `json:"hostPort,omitempty"`
-	MemoryMB int               `json:"memoryMB,omitempty"`
-	CPUs     float64           `json:"cpus,omitempty"` // fractional cores
-	Command  string            `json:"command,omitempty"` // shell command overriding the image entrypoint
-	Owner    string            `json:"owner,omitempty"`   // panel user id, informational
-	Name     string            `json:"name,omitempty"`
+	// Ports replaces HostPort when set: fully explicit expose/bind list.
+	Ports []PortSpec `json:"ports,omitempty"`
+	MemoryMB int      `json:"memoryMB,omitempty"`
+	CPUs     float64  `json:"cpus,omitempty"` // fractional cores
+	Command  string   `json:"command,omitempty"` // shell command overriding the image entrypoint
+	Owner    string   `json:"owner,omitempty"`   // panel user id, informational
+	Name     string   `json:"name,omitempty"`
+}
+
+// PortSpec is a container port to expose and bind on the host.
+type PortSpec struct {
+	Port     int    `json:"port"`
+	Protocol string `json:"protocol"` // "tcp" | "udp"
 }
 
 // store persists server specs as JSON so the daemon survives restarts.

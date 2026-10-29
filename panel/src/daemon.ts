@@ -23,12 +23,20 @@ export async function daemonFetch(
 }
 
 export function specFromServer(s: Server) {
+  let ports: Array<{ port: number; protocol: string }> = [];
+  try {
+    const parsed = JSON.parse(s.ports || "[]");
+    if (Array.isArray(parsed) && parsed.length) ports = parsed;
+  } catch {
+    /* fall back to legacy single-port spec */
+  }
   return {
     id: s.id,
     name: s.name,
     image: s.image,
     env: JSON.parse(s.env || "{}"),
-    hostPort: s.port ?? undefined,
+    ports,
+    hostPort: ports.length ? undefined : s.port ?? undefined,
     memoryMB: s.memory_mb ?? undefined,
     cpus: s.cpus ?? undefined,
     command: s.command ?? undefined,

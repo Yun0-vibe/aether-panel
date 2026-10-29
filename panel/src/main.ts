@@ -17,7 +17,7 @@ import {
   verifyPassword,
 } from "./auth.js";
 import { daemonFetch, specFromServer, statuses } from "./daemon.js";
-import { db, type Node, type Server, type User } from "./db.js";
+import { db, type Egg, type Node, type Server, type User, CUSTOM_EGG_ID } from "./db.js";
 import { registerFilesBackups } from "./files-backups.js";
 import { startScheduler } from "./scheduler.js";
 
@@ -100,6 +100,7 @@ function serverView(s: Server, node: Node | null, status: string) {
     node: node ? { id: node.id, name: node.name, host: node.host } : null,
     image: s.image,
     port: s.port,
+    ports: JSON.parse(s.ports || "[]"),
     memoryMB: s.memory_mb,
     cpus: s.cpus,
     backupEveryHours: s.backup_every_hours,
@@ -301,22 +302,53 @@ app.delete("/api/admin/nodes/:nid", async (req, reply) => {
   return { deleted: nid };
 });
 
+app.get("/api/admin/eggs", async (req, reply) => {
+  if (!requireAdmin(req as Authed, reply)) return;
+  const eggs = db.prepare("SELECT * FROM eggs ORDER BY sort, name").all() as Egg[];
+  return {
+    eggs: eggs.map((e) => ({
+      id: e.id,
+      name: e.name,
+      description: e.description,
+      image: e.image,
+      ports: JSON.parse(e.ports || "[]"),
+      env: JSON.parse(e.env || "{}"),
+      memoryMB: e.memory_mb,
+      cpus: e.cpus,
+    })),
+  };
+});
+
 // Validate optional fields shared by create/patch server.
 function parseServerFields(body: any) {
   const env: string = typeof body.env === "string" ? body.env : JSON.stringify(body.env ?? {});
   if (!/^[\x00-\x7F]*$/.test(env) || (env && !safeJSON(env))) return null;
+  let ports = "[]";
+  let portsValue = body.ports ?? "[]";
+  try {
+    const parsed = Array.isArray(portsValue) ? portsValue.filter(validPort) : JSON.parse(portsValue);
+    ports = JSON.stringify(parsed);
+  } catch {
+    return null;
+  }
   return {
     name: String(body.name ?? "").trim(),
     user_id: String(body.userId ?? ""),
     node_id: String(body.nodeId ?? ""),
     image: String(body.image ?? "").trim(),
     env,
+    ports,
     port: body.port == null ? null : Number(body.port),
     memory_mb: body.memoryMB == null ? null : Math.round(Number(body.memoryMB)),
     cpus: body.cpus == null ? null : Number(body.cpus),
     command: body.command ? String(body.command) : null,
     backup_every_hours: Math.max(0, Math.round(Number(body.backupEveryHours ?? 0))) || 0,
   };
+}
+
+function validPort(p: any) {
+  return p && Number.isInteger(Number(p.port)) && Number(p.port) > 0 && Number(p.port) <= 65535 &&
+    ["tcp", "udp"].includes(String(p.protocol));
 }
 
 function safeJSON(s: string) {
@@ -340,7 +372,26 @@ app.get("/api/admin/servers", async (req, reply) => {
 
 app.post("/api/admin/servers", async (req, reply) => {
   if (!requireAdmin(req as Authed, reply)) return;
-  const fields = parseServerFields(req.body ?? {});
+  const body = { ...((req.body as any) ?? {}) };
+
+  // Egg presets fill in image/env/ports/cpu/memory defaults.
+  if (body.eggId && body.eggId !== CUSTOM_EGG_ID) {
+    const egg = db.prepare("SELECT * FROM eggs WHERE id = ?").get(String(body.eggId)) as
+      | Egg
+      | undefined;
+    if (!egg) return reply.status(400).send({ error: "unknown egg" });
+    const eggEnv = JSON.parse(egg.env || "{}");
+    const userEnv = typeof body.env === "object" && body.env ? body.env : {};
+    if (!body.image) body.image = egg.image;
+    if (!body.ports || (Array.isArray(body.ports) && body.ports.length === 0)) {
+      body.ports = JSON.parse(egg.ports || "[]");
+    }
+    if (body.memoryMB == null) body.memoryMB = egg.memory_mb;
+    if (body.cpus == null) body.cpus = egg.cpus;
+    body.env = { ...eggEnv, ...userEnv };
+  }
+
+  const fields = parseServerFields(body);
   if (!fields) return reply.status(400).send({ error: "invalid server fields" });
   if (!fields.name || !fields.image || !fields.user_id || !fields.node_id) {
     return reply
@@ -352,10 +403,15 @@ app.post("/api/admin/servers", async (req, reply) => {
   if (!user) return reply.status(400).send({ error: "unknown user" });
   if (!node) return reply.status(400).send({ error: "unknown node" });
 
-  const server: Server = { id: id(), created_at: now(), ...fields, backup_every_hours: fields.backup_every_hours, last_backup_at: null } as unknown as Server;
+  const server: Server = {
+    id: id(),
+    created_at: now(),
+    last_backup_at: null,
+    ...fields,
+  } as unknown as Server;
   db.prepare(
-    `INSERT INTO servers (id, name, user_id, node_id, image, env, port, memory_mb, cpus, command, created_at, backup_every_hours, last_backup_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO servers (id, name, user_id, node_id, image, env, ports, port, memory_mb, cpus, command, created_at, backup_every_hours, last_backup_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     server.id,
     server.name,
@@ -363,6 +419,7 @@ app.post("/api/admin/servers", async (req, reply) => {
     server.node_id,
     server.image,
     server.env,
+    server.ports,
     server.port,
     server.memory_mb,
     server.cpus,
@@ -401,7 +458,7 @@ app.patch("/api/admin/servers/:sid", async (req, reply) => {
   const patch = parseServerFields({ ...s, ...(req.body ?? {}) });
   if (!patch) return reply.status(400).send({ error: "invalid server fields" });
   db.prepare(
-    `UPDATE servers SET name = ?, user_id = ?, node_id = ?, image = ?, env = ?,
+    `UPDATE servers SET name = ?, user_id = ?, node_id = ?, image = ?, env = ?, ports = ?,
      port = ?, memory_mb = ?, cpus = ?, command = ?, backup_every_hours = ? WHERE id = ?`,
   ).run(
     patch.name,
@@ -409,6 +466,7 @@ app.patch("/api/admin/servers/:sid", async (req, reply) => {
     patch.node_id,
     patch.image,
     patch.env,
+    patch.ports,
     patch.port,
     patch.memory_mb,
     patch.cpus,
