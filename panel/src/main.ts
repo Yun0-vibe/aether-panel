@@ -19,10 +19,12 @@ import {
 import { daemonFetch, specFromServer, statuses } from "./daemon.js";
 import { db, type Node, type Server, type User } from "./db.js";
 import { registerFilesBackups } from "./files-backups.js";
+import { startScheduler } from "./scheduler.js";
 
 const app = Fastify({ logger: false, trustProxy: true });
 app.register(cookie);
 registerFilesBackups(app);
+startScheduler();
 
 const id = () => crypto.randomUUID();
 const now = () => Date.now();
@@ -100,6 +102,8 @@ function serverView(s: Server, node: Node | null, status: string) {
     port: s.port,
     memoryMB: s.memory_mb,
     cpus: s.cpus,
+    backupEveryHours: s.backup_every_hours,
+    lastBackupAt: s.last_backup_at,
     status,
   };
 }
@@ -311,6 +315,7 @@ function parseServerFields(body: any) {
     memory_mb: body.memoryMB == null ? null : Math.round(Number(body.memoryMB)),
     cpus: body.cpus == null ? null : Number(body.cpus),
     command: body.command ? String(body.command) : null,
+    backup_every_hours: Math.max(0, Math.round(Number(body.backupEveryHours ?? 0))) || 0,
   };
 }
 
@@ -347,10 +352,10 @@ app.post("/api/admin/servers", async (req, reply) => {
   if (!user) return reply.status(400).send({ error: "unknown user" });
   if (!node) return reply.status(400).send({ error: "unknown node" });
 
-  const server: Server = { id: id(), created_at: now(), ...fields } as Server;
+  const server: Server = { id: id(), created_at: now(), ...fields, backup_every_hours: fields.backup_every_hours, last_backup_at: null } as unknown as Server;
   db.prepare(
-    `INSERT INTO servers (id, name, user_id, node_id, image, env, port, memory_mb, cpus, command, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO servers (id, name, user_id, node_id, image, env, port, memory_mb, cpus, command, created_at, backup_every_hours, last_backup_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     server.id,
     server.name,
@@ -363,6 +368,8 @@ app.post("/api/admin/servers", async (req, reply) => {
     server.cpus,
     server.command,
     server.created_at,
+    server.backup_every_hours,
+    null,
   );
 
   // Register with the daemon so the container is created (and image pulled).
@@ -395,7 +402,7 @@ app.patch("/api/admin/servers/:sid", async (req, reply) => {
   if (!patch) return reply.status(400).send({ error: "invalid server fields" });
   db.prepare(
     `UPDATE servers SET name = ?, user_id = ?, node_id = ?, image = ?, env = ?,
-     port = ?, memory_mb = ?, cpus = ?, command = ? WHERE id = ?`,
+     port = ?, memory_mb = ?, cpus = ?, command = ?, backup_every_hours = ? WHERE id = ?`,
   ).run(
     patch.name,
     patch.user_id,
@@ -406,6 +413,7 @@ app.patch("/api/admin/servers/:sid", async (req, reply) => {
     patch.memory_mb,
     patch.cpus,
     patch.command,
+    patch.backup_every_hours,
     sid,
   );
   // Push new spec to the (possibly new) node; container recreation is handled by the daemon.

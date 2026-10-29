@@ -1,1 +1,1 @@
-{"root":["./src/auth.ts","./src/console.ts","./src/daemon.ts","./src/db.ts","./src/files-backups.ts","./src/main.ts"],"version":"5.9.3"}
+{"root":["./src/auth.ts","./src/console.ts","./src/daemon.ts","./src/db.ts","./src/files-backups.ts","./src/main.ts","./src/scheduler.ts"],"version":"5.9.3"}

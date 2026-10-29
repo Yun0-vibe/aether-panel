@@ -41,7 +41,9 @@ CREATE TABLE IF NOT EXISTS servers (
   memory_mb INTEGER,
   cpus REAL,
   command TEXT,
-  created_at INTEGER NOT NULL
+  created_at INTEGER NOT NULL,
+  backup_every_hours INTEGER NOT NULL DEFAULT 0,
+  last_backup_at INTEGER
 );
 `);
 
@@ -74,4 +76,18 @@ export interface Server {
   cpus: number | null;
   command: string | null;
   created_at: number;
+  backup_every_hours: number;
+  last_backup_at: number | null;
+}
+
+// Existing databases may predate the scheduled-backup columns.
+try {
+  db.exec("ALTER TABLE servers ADD COLUMN backup_every_hours INTEGER NOT NULL DEFAULT 0");
+} catch {
+  /* column exists */
+}
+try {
+  db.exec("ALTER TABLE servers ADD COLUMN last_backup_at INTEGER");
+} catch {
+  /* column exists */
 }
