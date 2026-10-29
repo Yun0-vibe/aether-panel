@@ -18,9 +18,11 @@ import {
 } from "./auth.js";
 import { daemonFetch, specFromServer, statuses } from "./daemon.js";
 import { db, type Node, type Server, type User } from "./db.js";
+import { registerFilesBackups } from "./files-backups.js";
 
 const app = Fastify({ logger: false, trustProxy: true });
 app.register(cookie);
+registerFilesBackups(app);
 
 const id = () => crypto.randomUUID();
 const now = () => Date.now();

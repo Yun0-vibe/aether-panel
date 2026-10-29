@@ -65,6 +65,21 @@ User (owns servers):
 - `POST /api/servers/:id/power` `{action: "start"|"stop"|"restart"|"kill"}` → proxied to daemon
 - `WS   /api/servers/:id/console` → proxied websocket to daemon console
 
+File manager (ownership enforced, streamed through the panel):
+- `GET  /api/servers/:id/files?path=` → `{entries: [{name, size, dir, mode, modTime}]}`
+- `GET  /api/servers/:id/files/read?path=` → raw file contents
+- `POST /api/servers/:id/files/write` `{path, content}` → write a text file
+- `POST /api/servers/:id/files/upload?path=` → raw binary upload
+- `GET  /api/servers/:id/files/tar?path=` → download subtree as tar.gz
+- `POST /api/servers/:id/files` `{action: "mkdir"|"delete"|"rename", path, to?}`
+
+Backups:
+- `GET    /api/servers/:id/backups` → list
+- `POST   /api/servers/:id/backups` → create (tar.gz of the server's /data volume)
+- `GET    /api/servers/:id/backups/:bid` → download
+- `POST   /api/servers/:id/backups/:bid/restore` → stop + wipe /data + unpack
+- `DELETE /api/servers/:id/backups/:bid`
+
 Admin only:
 - `GET/POST/PATCH/DELETE /api/admin/users` `GET/POST/PATCH/DELETE /api/admin/users/:id`
 - `GET/POST/PATCH/DELETE /api/admin/nodes` `{name, host, daemonPort, token}`
@@ -76,6 +91,8 @@ Admin only:
 - `POST   /v1/servers/:id/power` `{action: "start"|"stop"|"restart"|"kill"}`
 - `DELETE /v1/servers/:id`
 - `GET    /v1/ws/:id` → upgrade to websocket; frames: `{"t":"out","d":"..."}` stdout, `{"t":"in","d":"cmd"}` stdin
+- `GET/POST /v1/files/:id(/read|write|upload|tar|mkdir|delete|rename)` → container-file management
+- `GET/POST/DELETE /v1/backups/:id(/:bid|/:bid/restore)` → backups
 
 ## Development
 

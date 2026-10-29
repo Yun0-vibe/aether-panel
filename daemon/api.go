@@ -6,6 +6,8 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -42,7 +44,28 @@ type daemonAPI struct {
 	docker  *client.Client
 	store   *store
 	hubs    *hubManager
+	dataDir string
 	stdinMu sync.Mutex
+}
+
+// resolveDataDir is where persistent server files and backups live.
+func resolveDataDir() string {
+	if d := os.Getenv("AETHER_DATA_DIR"); d != "" {
+		return d
+	}
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		dir = "."
+	}
+	return filepath.Join(dir, "aether", "data")
+}
+
+func (api *daemonAPI) serverDir(id string) string {
+	return filepath.Join(api.dataDir, "containers", id)
+}
+
+func (api *daemonAPI) backupsDir(id string) string {
+	return filepath.Join(api.dataDir, "backups", id)
 }
 
 func run(token, port string) error {
@@ -55,14 +78,21 @@ func run(token, port string) error {
 		return err
 	}
 	api := &daemonAPI{
-		token:  token,
-		docker: docker,
-		store:  st,
+		token:   token,
+		docker:  docker,
+		store:   st,
+		dataDir: resolveDataDir(),
 		hubs: &hubManager{
 			hubs:   map[string]*hub{},
 			active: map[string]context.CancelFunc{},
 			conns:  map[string]net.Conn{},
 		},
+	}
+	if err := os.MkdirAll(filepath.Join(api.dataDir, "containers"), 0o755); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Join(api.dataDir, "backups"), 0o755); err != nil {
+		return err
 	}
 	api.attachRunning()
 
@@ -78,6 +108,21 @@ func run(token, port string) error {
 	mux.Handle("POST /v1/servers/{id}/power", api.auth(http.HandlerFunc(api.powerServer)))
 	mux.Handle("DELETE /v1/servers/{id}", api.auth(http.HandlerFunc(api.deleteServer)))
 	mux.Handle("GET /v1/ws/{id}", api.authWS(http.HandlerFunc(api.consoleWS)))
+
+	mux.Handle("GET /v1/files/{id}", api.auth(http.HandlerFunc(api.fileList)))
+	mux.Handle("GET /v1/files/{id}/read", api.auth(http.HandlerFunc(api.fileRead)))
+	mux.Handle("POST /v1/files/{id}/write", api.auth(http.HandlerFunc(api.fileWrite)))
+	mux.Handle("POST /v1/files/{id}/upload", api.auth(http.HandlerFunc(api.fileUpload)))
+	mux.Handle("GET /v1/files/{id}/tar", api.auth(http.HandlerFunc(api.fileTar)))
+	mux.Handle("POST /v1/files/{id}/mkdir", api.auth(http.HandlerFunc(api.fileMkdir)))
+	mux.Handle("POST /v1/files/{id}/delete", api.auth(http.HandlerFunc(api.fileDelete)))
+	mux.Handle("POST /v1/files/{id}/rename", api.auth(http.HandlerFunc(api.fileRename)))
+
+	mux.Handle("GET /v1/backups/{id}", api.auth(http.HandlerFunc(api.backupList)))
+	mux.Handle("POST /v1/backups/{id}", api.auth(http.HandlerFunc(api.backupCreate)))
+	mux.Handle("GET /v1/backups/{id}/{bid}", api.auth(http.HandlerFunc(api.backupDownload)))
+	mux.Handle("POST /v1/backups/{id}/{bid}/restore", api.auth(http.HandlerFunc(api.backupRestore)))
+	mux.Handle("DELETE /v1/backups/{id}/{bid}", api.auth(http.HandlerFunc(api.backupDelete)))
 
 	log.Printf("aether daemon listening on :%s", port)
 	return http.ListenAndServe(":"+port, mux)

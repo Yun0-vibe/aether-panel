@@ -85,6 +85,12 @@ func (api *daemonAPI) ensureContainer(ctx context.Context, spec ServerSpec) erro
 		PortBindings: nat.PortMap{},
 		SecurityOpt:  []string{"no-new-privileges:true"},
 	}
+	// Persistent world/config storage mounted at /data inside the container.
+	serverDir := api.serverDir(spec.ID)
+	if err := os.MkdirAll(serverDir, 0o755); err != nil {
+		return err
+	}
+	hostCfg.Binds = []string{serverDir + ":/data"}
 	if spec.MemoryMB > 0 {
 		hostCfg.Memory = int64(spec.MemoryMB) * 1024 * 1024
 	}
