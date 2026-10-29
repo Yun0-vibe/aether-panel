@@ -4,8 +4,13 @@ import { api, ApiError } from "../auth/AuthContext";
 import type { ServerSummary } from "../auth/AuthContext";
 import { StatusBadge } from "./Dashboard";
 import { useToast } from "../components/Toasts";
+import { FilesTab } from "./ServerFiles";
+import { BackupsTab } from "./ServerBackups";
 
 type Action = "start" | "stop" | "restart" | "kill";
+
+const TABS = ["Console", "Files", "Backups"] as const;
+type ServerTab = (typeof TABS)[number];
 
 interface ConsoleLine {
   kind: "out" | "status";
@@ -32,6 +37,7 @@ export function ServerDetail() {
   const [input, setInput] = useState("");
   const [history, setHistory] = useState<string[]>([]);
   const [histIdx, setHistIdx] = useState(-1);
+  const [tab, setTab] = useState<ServerTab>("Console");
 
   const wsRef = useRef<WebSocket | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -194,6 +200,21 @@ export function ServerDetail() {
         </div>
       </div>
 
+      <div className="tab-nav" role="tablist">
+        {TABS.map((t) => (
+          <button
+            key={t}
+            role="tab"
+            aria-selected={tab === t}
+            className={`tab ${tab === t ? "active" : ""}`}
+            onClick={() => setTab(t)}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {tab === "Console" && (
       <div className="detail-grid">
         <section className="card console-card">
           <div className="console-head">
@@ -260,6 +281,10 @@ export function ServerDetail() {
           </div>
         </aside>
       </div>
+      )}
+
+      {tab === "Files" && <FilesTab serverId={id} />}
+      {tab === "Backups" && <BackupsTab serverId={id} />}
     </div>
   );
 }

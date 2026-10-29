@@ -48,6 +48,11 @@ git push -u origin main
 - **daemon/** — Go agent running on every game node. Talks to the local Docker daemon, runs each
   game server in its own container, streams stdin/stdout over websocket.
 
+**Features (current)**: admin/user accounts · node management · server CRUD with Docker isolation ·
+power control (start/stop/restart/kill) · live websocket console with command input ·
+file manager (browse/edit/upload/delete, sandboxed per server) · backups (create/restore/download,
+screened against path-escape) · scheduled automatic backups with retention.
+
 ## API contract
 
 ### Panel → Browser (`/api/*`)
