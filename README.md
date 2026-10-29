@@ -1,6 +1,14 @@
 # Aether Panel
 
-A Pterodactyl/Multicraft-style multi-tenant game server panel.
+<p align="center">
+  <img src="panel/client/public/og.png" alt="Aether Panel banner" width="640" />
+</p>
+
+<h4 align="center">Game servers, handled. An open-source, self-hosted Pterodactyl alternative.</h4>
+
+A multi-tenant game server control panel: deploy Minecraft, Valheim, Palworld and friends into
+isolated Docker containers on your own Linux node — with a live console, file manager, backups
+and user management through a clean web UI.
 
 ## Quick start with GitHub Codespaces (no local setup)
 
@@ -22,10 +30,20 @@ Your machine only needs GitHub — the panel, daemon, and Docker all run in the 
 8. Click the server ▸ **Start** and watch the console — when it says "Done", the address is
    `<codespace-url>:25565` (forward port 25565 as **public** in the Codespaces Ports panel).
 
+## One-command install (fresh codespace, VPS or box)
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Yun0-vibe/aether-panel/main/scripts/install.sh)"
+```
+
+Requires Node ≥ 20 + Go ≥ 1.25 (or Docker as a daemon fallback). The script clones, builds,
+generates a random node token into `.env`, starts panel + daemon with `nohup` under `~/.aether`
+and prints the exact next steps. Re-running is safe (idempotent).
+
 ## Pushing
 
 ```bash
-git remote add origin https://github.com/<you>/<repo>.git
+git remote add origin https://github.com/Yun0-vibe/aether-panel.git
 git push -u origin main
 ```
 

@@ -19,7 +19,10 @@ export function NavBar() {
     <header className="navbar">
       <div className="navbar-inner">
         <Link to="/" className="brand">
-          <span className="brand-mark">▲</span> Aether Panel
+          <img src="/favicon-192.png" alt="Aether Panel logo" className="brand-logo" />
+          <span>
+            Aether <span className="brand-accent">Panel</span>
+          </span>
         </Link>
         <nav className="nav-links">
           <NavLink to="/" end className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 128" role="img" aria-label="Aether Panel logo">
+  <defs>
+    <linearGradient id="lbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0c1424"/>
+      <stop offset="1" stop-color="#152344"/>
+    </linearGradient>
+    <linearGradient id="lmark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7cf0ff"/>
+      <stop offset="1" stop-color="#3b82f6"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#lbg)"/>
+  <path d="M64 22 L104 108 H86 L64 51.5 L42 108 H24 Z" fill="url(#lmark)"/>
+  <rect x="44" y="82" width="40" height="8" rx="4" fill="#0c1424" opacity="0.25"/>
+  <text x="152" y="78" font-family="'Segoe UI', Arial, sans-serif" font-size="58" font-weight="800" letter-spacing="3" fill="#e2e8f0">AETHER</text>
+  <text x="152" y="106" font-family="'Segoe UI', Arial, sans-serif" font-size="22" font-weight="600" letter-spacing="10.5" fill="#38bdf8">PANEL</text>
+</svg>

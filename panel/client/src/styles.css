@@ -1095,3 +1095,22 @@ input[readonly] {
     display: none;
   }
 }
+
+/* ---------- brand ---------- */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 800;
+  font-size: 1.02rem;
+  letter-spacing: 0.06em;
+}
+.brand-logo {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
+}
+.brand-accent {
+  color: #38bdf8;
+}
