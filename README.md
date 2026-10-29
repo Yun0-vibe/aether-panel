@@ -6,6 +6,12 @@
 
 <h4 align="center">Game servers, handled. An open-source, self-hosted Pterodactyl alternative.</h4>
 
+<p align="center">
+  <a href="https://github.com/Yun0-vibe/aether-panel/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Yun0-vibe/aether-panel/ci.yml?branch=main&label=CI" /></a>
+  <a href="LICENSE"><img alt="License MIT" src="https://img.shields.io/github/license/Yun0-vibe/aether-panel" /></a>
+  <a href="https://github.com/Yun0-vibe/aether-panel/releases"><img alt="Release" src="https://img.shields.io/badge/status-alpha-orange" /></a>
+</p>
+
 A multi-tenant game server control panel: deploy Minecraft, Valheim, Palworld and friends into
 isolated Docker containers on your own Linux node — with a live console, file manager, backups
 and user management through a clean web UI.
@@ -69,7 +75,37 @@ git push -u origin main
 **Features (current)**: admin/user accounts · node management · server CRUD with Docker isolation ·
 power control (start/stop/restart/kill) · live websocket console with command input ·
 file manager (browse/edit/upload/delete, sandboxed per server) · backups (create/restore/download,
-screened against path-escape) · scheduled automatic backups with retention.
+screened against path-escape) · scheduled automatic backups with retention ·
+game preset templates ("eggs") with tcp/udp multi-port support.
+
+## Security notes
+
+- The node daemon holds root-level Docker access **by design** — run it on a dedicated user/VPS
+  you trust, keep `AETHER_TOKEN` secret, and never expose the daemon port publicly.
+- The panel forbids public indexing (`noindex` + `robots.txt`) and keeps registration closed
+  after the first admin account (`AETHER_OPEN_REGISTER=true` reopens it).
+- Every file operation is path-checked server-side; archives are screened against path escape
+  on restore.
+
+## Roadmap
+
+- [x] Nodes, auth, console, power, files, backups, schedules, eggs
+- [ ] Player management (RCON for Minecraft/Source games)
+- [ ] Resource stats per server (CPU/RAM sparklines)
+- [ ] Allocation management (dedicated IP/port pools)
+- [ ] Subusers per server with per-server permissions
+
+## Contributing
+
+Issues and PRs welcome — the CI workflow builds `daemon` (Go), `panel` (Node/TS) and
+`panel/client` (React) on every push, so make sure all three pass locally:
+
+```bash
+cd daemon && go build .
+cd panel && npm run build
+cd client && npm run build
+```
+
 
 ## API contract
 
