@@ -513,7 +513,7 @@ app.delete("/api/admin/servers/:sid", async (req, reply) => {
 const port = Number(process.env.AETHER_PANEL_PORT) || 3000;
 
 // Serve the built client in production if it exists.
-const clientDist = path.join(process.cwd(), "client", "dist");
+const clientDist = path.join(process.cwd(), "panel", "client", "dist");
 if (fs.existsSync(clientDist)) {
   await app.register(fastifyStatic, { root: clientDist });
   app.setNotFoundHandler((req, reply) => {
