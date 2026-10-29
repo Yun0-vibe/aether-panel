@@ -2,6 +2,33 @@
 
 A Pterodactyl/Multicraft-style multi-tenant game server panel.
 
+## Quick start with GitHub Codespaces (no local setup)
+
+Your machine only needs GitHub — the panel, daemon, and Docker all run in the cloud:
+
+1. Push this repository to GitHub (see *Pushing* below), then on the repo page:
+   **Code ▸ Codespaces ▸ Create codespace on main**.
+2. Wait for the setup script (installs deps, builds the daemon — Docker-in-Docker is included in
+   the container, so real game server containers can run inside the codespace).
+3. In the codespace terminal: `bash scripts/dev.sh`
+4. Port **3000** auto-forwards and opens in your browser.
+5. Register once → that account is **admin**.
+6. Admin ▸ Nodes → add a node: `host: 127.0.0.1`, `daemonPort: 8080`,
+   `token: dev-codespace-token` (matches the daemon env in the dev container).
+7. Admin ▸ Servers → e.g. a Minecraft server:
+   - image: `itzg/minecraft-server`  (pre-built Minecraft + Docker-friendly)
+   - env: `SERVER_PORT=25565`, `EULA=TRUE`, `MOTD=hello aether`
+   - port: `25565`, memoryMB: `2048`, cpus: `1`
+8. Click the server ▸ **Start** and watch the console — when it says "Done", the address is
+   `<codespace-url>:25565` (forward port 25565 as **public** in the Codespaces Ports panel).
+
+## Pushing
+
+```bash
+git remote add origin https://github.com/<you>/<repo>.git
+git push -u origin main
+```
+
 ## Architecture
 
 ```
