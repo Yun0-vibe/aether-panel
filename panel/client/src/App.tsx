@@ -3,6 +3,7 @@ import { AuthProvider } from "./auth/AuthContext";
 import { RequireAdmin, RequireAuth } from "./auth/Guards";
 import { ToastProvider } from "./components/Toasts";
 import { NavBar } from "./components/NavBar";
+import { Sidebar } from "./components/Sidebar";
 import { LoginPage, RegisterPage } from "./pages/AuthPages";
 import { Dashboard } from "./pages/Dashboard";
 import { ServerDetail } from "./pages/ServerDetail";
@@ -56,8 +57,8 @@ export default function App() {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="app">
-      <NavBar />
+    <div className="app shell">
+      <Sidebar />
       <main className="main">{children}</main>
     </div>
   );

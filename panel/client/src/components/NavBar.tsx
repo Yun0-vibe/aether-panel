@@ -1,7 +1,7 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth, useLogoutAndRedirect } from "../auth/AuthContext";
 
-function RoleBadge({ role }: { role: string }) {
+export function RoleBadge({ role }: { role: string }) {
   return <span className={`role-badge role-${role}`}>{role}</span>;
 }
 
