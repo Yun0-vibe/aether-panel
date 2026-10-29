@@ -19,7 +19,22 @@ interface AdminServer extends Omit<ServerSummary, "node"> {
   env?: Record<string, string>;
   memoryMB?: number;
   cpus?: number;
+  ports?: EggPort[];
   node?: { name: string; host: string } | null;
+}
+interface EggPort {
+  port: number;
+  protocol: string;
+}
+interface Egg {
+  id: string;
+  name: string;
+  description?: string;
+  image: string;
+  ports?: EggPort[];
+  env?: Record<string, string>;
+  memoryMB?: number;
+  cpus?: number;
 }
 
 /* ---------------- shared bits ---------------- */
@@ -483,6 +498,7 @@ function ServersTab() {
   const [servers, setServers] = useState<AdminServer[] | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [nodes, setNodes] = useState<Node[]>([]);
+  const [eggs, setEggs] = useState<Egg[]>([]);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<AdminServer | null>(null);
 
@@ -500,6 +516,23 @@ function ServersTab() {
       toast.pushError(e);
     }
   }, [toast]);
+
+  // Reload eggs once per "New server" open; a failed egg load shouldn't block the manual flow.
+  useEffect(() => {
+    if (!adding) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await api<{ eggs?: Egg[] } | Egg[]>("/api/admin/eggs");
+        if (!cancelled) setEggs(Array.isArray(data) ? data : (data.eggs ?? []));
+      } catch {
+        if (!cancelled) setEggs([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [adding]);
 
   useEffect(() => {
     void load();
@@ -532,7 +565,14 @@ function ServersTab() {
               <td>{users.find((u) => u.id === s.userId)?.email ?? <span className="muted">{s.userId}</span>}</td>
               <td>{nodes.find((n) => n.id === s.nodeId)?.name ?? <span className="muted">{s.nodeId}</span>}</td>
               <td className="mono trunc">{s.image}</td>
-              <td>{s.port ?? "—"}</td>
+              <td>
+                {s.port ?? "—"}
+                {s.ports && s.ports.length > 0 && (
+                  <div className="mono muted row-ports">
+                    {s.ports.map((p) => `${p.port}/${p.protocol}`).join(" · ")}
+                  </div>
+                )}
+              </td>
               <td>
                 <span className={`status-badge ${statusClass(s.status)}`}>{(s.status ?? "").toLowerCase() || "unknown"}</span>
               </td>
@@ -562,7 +602,7 @@ function ServersTab() {
 
       {adding && (
         <Modal title="New server" onClose={() => setAdding(false)}>
-          <ServerForm users={users} nodes={nodes} submitLabel="Create server" onSubmit={async (body) => {
+          <ServerForm users={users} nodes={nodes} eggs={eggs} submitLabel="Create server" onSubmit={async (body) => {
             await api("/api/admin/servers", { method: "POST", body });
             toast.push("Server created", "success");
           }} done={() => { setAdding(false); void load(); }} />
@@ -589,9 +629,12 @@ function statusClass(status?: string | null) {
   return "badge-yellow";
 }
 
+type PortDraft = { port: string; protocol: "tcp" | "udp" };
+
 function ServerForm({
   users,
   nodes,
+  eggs,
   initial,
   submitLabel,
   onSubmit,
@@ -599,24 +642,56 @@ function ServerForm({
 }: {
   users: AdminUser[];
   nodes: Node[];
+  eggs?: Egg[];
   initial?: AdminServer;
   submitLabel: string;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
   done: () => void;
 }) {
+  const isEdit = !!initial;
   const [name, setName] = useState(initial?.name ?? "");
   const [userId, setUserId] = useState(initial?.userId ?? "");
   const [nodeId, setNodeId] = useState(initial?.nodeId ?? "");
+  const [eggId, setEggId] = useState("custom");
   const [image, setImage] = useState(initial?.image ?? "");
-  const [port, setPort] = useState(initial?.port != null ? String(initial.port) : "");
   const [memoryMB, setMemoryMB] = useState(initial?.memoryMB != null ? String(initial.memoryMB) : "512");
   const [cpus, setCpus] = useState(initial?.cpus != null ? String(initial.cpus) : "1");
+  const [backupEveryHours, setBackupEveryHours] = useState("");
   // env as key=value list editor
   const [envEntries, setEnvEntries] = useState<{ k: string; v: string }[]>(
     Object.entries(initial?.env ?? {}).map(([k, v]) => ({ k, v: String(v) }))
   );
+  const [ports, setPorts] = useState<PortDraft[]>(() => {
+    if (initial?.ports?.length) {
+      return initial.ports.map((p) => ({ port: String(p.port), protocol: p.protocol === "udp" ? "udp" : "tcp" }));
+    }
+    if (initial?.port != null) return [{ port: String(initial.port), protocol: "tcp" }];
+    return [{ port: "", protocol: "tcp" }];
+  });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const egg = !isEdit && eggId !== "custom" ? eggs?.find((e) => e.id === eggId) : undefined;
+
+  // Switching template auto-fills the form (all fields stay editable for overrides).
+  function onEggChange(id: string) {
+    setEggId(id);
+    if (id === "custom") {
+      setImage("");
+      setEnvEntries([]);
+      setPorts([{ port: "", protocol: "tcp" }]);
+      setMemoryMB("512");
+      setCpus("1");
+      return;
+    }
+    const next = eggs?.find((e) => e.id === id);
+    if (!next) return;
+    setImage(next.image);
+    setEnvEntries(Object.entries(next.env ?? {}).map(([k, v]) => ({ k, v: String(v) })));
+    setPorts((next.ports ?? []).map((p) => ({ port: String(p.port), protocol: p.protocol === "udp" ? "udp" : "tcp" })));
+    setMemoryMB(next.memoryMB != null ? String(next.memoryMB) : "512");
+    setCpus(next.cpus != null ? String(next.cpus) : "1");
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -625,16 +700,29 @@ function ServerForm({
     try {
       const env: Record<string, string> = {};
       for (const { k, v } of envEntries) if (k.trim()) env[k.trim()] = v;
+      const portsArr = ports
+        .filter((p) => p.port !== "" && Number(p.port) > 0)
+        .map((p) => ({ port: Number(p.port), protocol: p.protocol }));
+      const firstTcp = portsArr.find((p) => p.protocol === "tcp");
       const body: Record<string, unknown> = {
         name,
         userId,
         nodeId,
-        image,
         env,
-        port: port ? Number(port) : undefined,
+        ports: portsArr,
+        port: firstTcp ? firstTcp.port : null,
         memoryMB: memoryMB ? Number(memoryMB) : undefined,
         cpus: cpus ? Number(cpus) : undefined,
       };
+      if (isEdit) {
+        body.image = image;
+      } else {
+        body.eggId = eggId;
+        // For egg-based servers, only send image when the admin changed it
+        // (omitted means "use the egg's image" server-side).
+        if (!egg || image !== egg.image) body.image = image;
+        if (backupEveryHours) body.backupEveryHours = Number(backupEveryHours);
+      }
       await onSubmit(body);
       done();
     } catch (e) {
@@ -646,6 +734,20 @@ function ServerForm({
 
   return (
     <form onSubmit={submit} className="modal-form">
+      {!isEdit && (
+        <label className="field">
+          <span>Egg / template</span>
+          <select value={eggId} onChange={(e) => onEggChange(e.target.value)}>
+            <option value="custom">Custom / advanced</option>
+            {(eggs ?? []).map((egg) => (
+              <option key={egg.id} value={egg.id}>
+                {egg.name}
+              </option>
+            ))}
+          </select>
+          {egg?.description && <div className="muted field-help">{egg.description}</div>}
+        </label>
+      )}
       <label className="field">
         <span>Name</span>
         <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="My Minecraft server" />
@@ -679,20 +781,53 @@ function ServerForm({
         </label>
       </div>
       <label className="field">
-        <span>Image</span>
+        <span>{egg ? `Image (from ${egg.name})` : "Image"}</span>
         <input
-          required
+          required={isEdit || eggId === "custom"}
           value={image}
           onChange={(e) => setImage(e.target.value)}
-          placeholder="ghcr.io/library/minecraft"
+          placeholder={egg ? egg.image || "ghcr.io/library/minecraft" : "ghcr.io/library/minecraft"}
           className="mono"
         />
       </label>
+      <div className="field">
+        <span>Ports</span>
+        <div className="env-editor">
+          {ports.map((p, i) => (
+            <div className="env-row port-row" key={i}>
+              <input
+                type="number"
+                min="0"
+                value={p.port}
+                onChange={(e) => setPorts((arr) => arr.map((x, j) => (j === i ? { ...x, port: e.target.value } : x)))}
+                placeholder="Port"
+              />
+              <select
+                value={p.protocol}
+                onChange={(e) =>
+                  setPorts((arr) =>
+                    arr.map((x, j) => (j === i ? { ...x, protocol: e.target.value === "udp" ? "udp" : "tcp" } : x))
+                  )
+                }
+              >
+                <option value="tcp">tcp</option>
+                <option value="udp">udp</option>
+              </select>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setPorts((arr) => arr.filter((_, j) => j !== i))}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPorts((arr) => [...arr, { port: "", protocol: "tcp" }])}>
+            + Add port
+          </button>
+        </div>
+      </div>
       <div className="field-row">
-        <label className="field">
-          <span>Port</span>
-          <input type="number" value={port} onChange={(e) => setPort(e.target.value)} placeholder="25565" />
-        </label>
         <label className="field">
           <span>Memory (MB)</span>
           <input type="number" value={memoryMB} onChange={(e) => setMemoryMB(e.target.value)} />
@@ -701,6 +836,18 @@ function ServerForm({
           <span>CPUs</span>
           <input type="number" step="0.1" value={cpus} onChange={(e) => setCpus(e.target.value)} />
         </label>
+        {!isEdit && (
+          <label className="field">
+            <span>Backup every (h)</span>
+            <input
+              type="number"
+              min="0"
+              value={backupEveryHours}
+              onChange={(e) => setBackupEveryHours(e.target.value)}
+              placeholder="Optional"
+            />
+          </label>
+        )}
       </div>
       <div className="field">
         <span>Environment variables</span>

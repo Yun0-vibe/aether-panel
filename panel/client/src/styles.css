@@ -1043,6 +1043,46 @@ input[readonly] {
   color: var(--muted);
   font-family: var(--mono);
 }
+.field-help {
+  margin-top: 0.3rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+.port-row input[type="number"] {
+  width: 130px;
+  flex: none;
+}
+.port-row select {
+  width: 92px;
+  flex: none;
+}
+.row-ports {
+  font-size: 0.72rem;
+  margin-top: 1px;
+  white-space: normal;
+}
+
+/* ---------- dashboard signal ---------- */
+.server-card[data-status="running"] .status-badge::before {
+  box-shadow: 0 0 8px 1px currentColor;
+  animation: status-pulse 2.2s ease-in-out infinite;
+}
+@keyframes status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.82);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .server-card[data-status="running"] .status-badge::before {
+    animation: none;
+  }
+}
 
 /* ---------- toasts ---------- */
 .toast-stack {

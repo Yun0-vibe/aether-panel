@@ -153,6 +153,23 @@ Admin only:
 - `GET/POST /v1/files/:id(/read|write|upload|tar|mkdir|delete|rename)` → container-file management
 - `GET/POST/DELETE /v1/backups/:id(/:bid|/:bid/restore)` → backups
 
+## Clean rebuild (no containers, pure native toolchain)
+
+Everything compiles natively — Node for the panel, Go for the daemon binary. No Docker is ever
+required unless you want to *run game containers* on a node.
+
+```bash
+bash scripts/rebuild.sh            # clean install + build all three components
+bash scripts/rebuild.sh --start    # build + launch panel (:3000) and daemon (:8080)
+```
+
+Windows equivalent:
+
+```powershell
+powershell -File scripts\rebuild.ps1
+powershell -File scripts\rebuild.ps1 -Start
+```
+
 ## Development
 
 ```bash
