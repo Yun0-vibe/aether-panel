@@ -6,6 +6,7 @@ import { ToastProvider } from "./components/Toasts";
 import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { LoginPage, RegisterPage } from "./pages/AuthPages";
+import { ProfilePage } from "./pages/ProfilePage";
 import { Dashboard } from "./pages/Dashboard";
 import { ServersPage } from "./pages/Servers";
 import { ServerDetail } from "./pages/ServerDetail";
@@ -47,6 +48,16 @@ export default function App() {
                 <RequireAuth>
                   <Shell>
                     <ServerDetail />
+                  </Shell>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <RequireAuth>
+                  <Shell>
+                    <ProfilePage />
                   </Shell>
                 </RequireAuth>
               }
