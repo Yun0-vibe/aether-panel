@@ -1,47 +1,13 @@
-import { Link, NavLink, useNavigate } from "react-router-dom";
-import { useAuth, useLogoutAndRedirect } from "../auth/AuthContext";
+import React from "react";
 
 export function RoleBadge({ role }: { role: string }) {
-  return <span className={`role-badge role-${role}`}>{role}</span>;
+  return (
+    <span className={`role-badge ${role === "admin" ? "role-admin" : "role-user"}`}>
+      {role}
+    </span>
+  );
 }
 
 export function NavBar() {
-  const { user } = useAuth();
-  const logout = useLogoutAndRedirect();
-  const navigate = useNavigate();
-
-  async function onLogout() {
-    await logout();
-    navigate("/login", { replace: true });
-  }
-
-  return (
-    <header className="navbar">
-      <div className="navbar-inner">
-        <Link to="/" className="brand">
-          <img src="/favicon-192.png" alt="Aether Panel logo" className="brand-logo" />
-          <span>
-            Aether <span className="brand-accent">Panel</span>
-          </span>
-        </Link>
-        <nav className="nav-links">
-          <NavLink to="/" end className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
-            Dashboard
-          </NavLink>
-          {user?.role === "admin" && (
-            <NavLink to="/admin" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
-              Admin
-            </NavLink>
-          )}
-        </nav>
-        <div className="nav-user">
-          <span className="nav-email">{user?.email}</span>
-          <RoleBadge role={user?.role ?? "user"} />
-          <button className="btn btn-ghost" onClick={onLogout}>
-            Log out
-          </button>
-        </div>
-      </div>
-    </header>
-  );
+  return null; // Shell now uses Sidebar + TopBar
 }

@@ -1,87 +1,62 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api, ApiError, useAuth } from "../auth/AuthContext";
 import type { ServerSummary, User } from "../auth/AuthContext";
 import { useToast } from "../components/Toasts";
+import { IconClose, IconPlus, IconUsers, IconLayers, IconServer } from "../components/Icons";
+import { RoleBadge } from "../components/RoleBadge";
 
-/* ---------------- types ---------------- */
-
-interface AdminUser extends User {
-  createdAt?: string;
-}
-interface Node {
-  id: string;
-  name: string;
-  host: string;
-  daemonPort: number;
-  token?: string;
-}
+interface AdminUser extends User { createdAt?: string; }
+interface Node { id: string; name: string; host: string; daemonPort: number; token?: string; }
 interface AdminServer extends Omit<ServerSummary, "node"> {
-  env?: Record<string, string>;
-  memoryMB?: number;
-  cpus?: number;
-  ports?: EggPort[];
+  env?: Record<string, string>; memoryMB?: number; cpus?: number; ports?: EggPort[];
   node?: { name: string; host: string } | null;
 }
-interface EggPort {
-  port: number;
-  protocol: string;
-}
-interface Egg {
-  id: string;
-  name: string;
-  description?: string;
-  image: string;
-  ports?: EggPort[];
-  env?: Record<string, string>;
-  memoryMB?: number;
-  cpus?: number;
-}
+interface EggPort { port: number; protocol: string; }
+interface Egg { id: string; name: string; description?: string; image: string; ports?: EggPort[]; env?: Record<string, string>; memoryMB?: number; cpus?: number; }
 
-/* ---------------- shared bits ---------------- */
+const TABS = ["users", "nodes", "servers"] as const;
+type Tab = (typeof TABS)[number];
+const TAB_META: Record<Tab, { label: string; icon: React.ReactNode }> = {
+  users: { label: "Users", icon: <IconUsers size={16} className="flex-none" /> },
+  nodes: { label: "Nodes", icon: <IconLayers size={16} className="flex-none" /> },
+  servers: { label: "Servers", icon: <IconServer size={16} className="flex-none" /> },
+};
 
-function Modal({
-  title,
-  children,
-  onClose,
-}: {
-  title: string;
-  children: React.ReactNode;
-  onClose: () => void;
-}) {
+function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal">
-        <div className="modal-head">
-          <h3>{title}</h3>
-          <button className="btn btn-ghost btn-sm" onClick={onClose}>
-            ✕
+    <div className="modal-backdrop fixed inset-0 z-[200] flex items-center justify-center p-6 bg-[#03060e]/72 backdrop-blur-[10px] -webkit-backdrop-blur-[10px] animate-[fade-in_220ms_var(--ease)]" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal w-full max-w-[580px] rounded-[24px] bg-gradient-to-b from-[rgba(18,25,43,0.97)] to-[rgba(12,17,31,0.97)] border border-white/12 shadow-[0_40px_90px_-30px_rgba(0,0,0,0.95)] animate-[modal-in_320ms_var(--ease)] overflow-hidden flex flex-col">
+        <div className="modal-head sticky top-0 z-1 flex items-center justify-between gap-3 px-5 py-4 border-b border-border bg-[rgba(18,25,43,0.96)] backdrop-blur-[10px] -webkit-backdrop-blur-[10px]">
+          <h3 className="text-sm font-bold">{title}</h3>
+          <button className="flex-none w-8 h-8 grid place-items-center rounded-md border border-transparent text-text-3 hover:text-white hover:bg-white/5 hover:border-white/10 transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]" onClick={onClose} aria-label="Close">
+            <IconClose size={16} className="flex-none" />
           </button>
         </div>
-        {children}
+        <div className="modal-form p-5">{children}</div>
       </div>
     </div>
   );
 }
 
-/* ---------------- root ---------------- */
-
-const TABS = ["users", "nodes", "servers"] as const;
-type Tab = (typeof TABS)[number];
-
 export function AdminPage() {
-  const [tab, setTab] = useState<Tab>("users");
+  const [params, setParams] = useSearchParams();
+  const requested = params.get("tab");
+  const tab: Tab = requested === "nodes" || requested === "servers" ? requested : "users";
+  function setTab(t: Tab) { setParams(t === "users" ? {} : { tab: t }, { replace: true }); }
+
   return (
     <div className="container">
-      <div className="page-head">
+      <div className="page-head mb-[22px]">
         <div>
-          <h1 className="page-title">Administration</h1>
-          <p className="page-sub">Manage users, nodes and servers</p>
+          <h1 className="page-title text-[clamp(26px,3vw,34px)] font-black brand-grad grad-text">Administration</h1>
+          <p className="mt-[6px] text-[13.5px] text-text-2">Manage users, nodes and servers</p>
         </div>
       </div>
-      <div className="tab-nav">
+      <div className="tab-nav flex gap-[4px] mb-[18px] border-b border-border overflow-x-auto">
         {TABS.map((t) => (
-          <button key={t} className={`tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
-            {t[0].toUpperCase() + t.slice(1)}
+          <button key={t} className={`tab relative h-[40px] px-[15px] border-r rounded-[10px]_rounded-[10px]_0_0 text-[13px] font-bold whitespace-nowrap transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${tab === t ? "text-brand" : "text-text-3"} hover:text-white hover:bg-white/4`} onClick={() => setTab(t)}>
+            {TAB_META[t].icon} {TAB_META[t].label}
           </button>
         ))}
       </div>
@@ -91,8 +66,6 @@ export function AdminPage() {
     </div>
   );
 }
-
-/* ---------------- users tab ---------------- */
 
 function UsersTab() {
   const toast = useToast();
@@ -105,14 +78,9 @@ function UsersTab() {
     try {
       const data = await api<{ users?: AdminUser[] } | AdminUser[]>("/api/admin/users");
       setUsers(Array.isArray(data) ? data : (data.users ?? []));
-    } catch (e) {
-      toast.pushError(e);
-    }
+    } catch (e) { toast.pushError(e); }
   }, [toast]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   async function del(u: AdminUser) {
     if (!window.confirm(`Delete user ${u.email}?`)) return;
@@ -120,98 +88,39 @@ function UsersTab() {
       await api(`/api/admin/users/${encodeURIComponent(u.id)}`, { method: "DELETE" });
       toast.push("User deleted", "success");
       void load();
-    } catch (e) {
-      toast.pushError(e);
-    }
+    } catch (e) { toast.pushError(e); }
   }
 
   return (
-    <div className="card table-card">
-      <div className="table-toolbar">
-        <span className="muted">{users?.length ?? 0} users</span>
-        <button className="btn btn-primary" onClick={() => setAdding(true)}>
-          + New user
-        </button>
+    <div className="card table-card overflow-hidden">
+      <div className="table-toolbar flex items-center justify-between gap-[12px] px-[15px] py-[13px] border-b border-border bg-white/1">
+        <span className="muted text-[12.5px] font-bold">{users?.length ?? 0} users</span>
+        <button className="btn btn-primary" onClick={() => setAdding(true)}><IconPlus size={16} className="flex-none" /> New user</button>
       </div>
       <table className="table">
-        <thead>
-          <tr>
-            <th>Email</th>
-            <th>Role</th>
-            <th>User ID</th>
-            <th className="th-actions">Actions</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Email</th><th>Role</th><th>User ID</th><th className="th-actions">Actions</th></tr></thead>
         <tbody>
           {users?.map((u) => (
             <tr key={u.id}>
-              <td>
-                {u.email}
-                {u.id === me?.id && <span className="pill">you</span>}
-              </td>
-              <td>
-                <span className={`role-badge role-${u.role}`}>{u.role}</span>
-              </td>
-              <td className="mono muted">{u.id}</td>
-              <td className="td-actions">
-                <button className="btn btn-ghost btn-sm" onClick={() => setEditing(u)}>
-                  Edit
-                </button>
-                <button className="btn btn-red btn-sm" onClick={() => void del(u)} disabled={u.id === me?.id}>
-                  Delete
-                </button>
+              <td>{u.email}{u.id === me?.id && <span className="pill ml-[6px] inline-flex items-center px-2 py-0.5 rounded-full border border-border text-[9.5px] font-black tracking-wider uppercase text-text-2 bg-white/7">you</span>}</td>
+              <td><RoleBadge role={u.role} /></td>
+              <td className="mono muted text-[13px]">{u.id}</td>
+              <td className="td-actions flex justify-end gap-[6px]">
+                <button className="btn btn-ghost btn-sm" onClick={() => setEditing(u)}>Edit</button>
+                <button className="btn btn-red btn-sm" onClick={() => void del(u)} disabled={u.id === me?.id}>Delete</button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-
-      {adding && (
-        <Modal title="New user" onClose={() => setAdding(false)}>
-          <UserForm
-            submitLabel="Create user"
-            onSubmit={async (body) => {
-              await api("/api/admin/users", { method: "POST", body });
-              toast.push("User created", "success");
-            }}
-            done={() => {
-              setAdding(false);
-              void load();
-            }}
-          />
-        </Modal>
-      )}
-      {editing && (
-        <Modal title={`Edit ${editing.email}`} onClose={() => setEditing(null)}>
-          <UserForm
-            initial={editing}
-            submitLabel="Save changes"
-            onSubmit={async (body) => {
-              await api(`/api/admin/users/${encodeURIComponent(editing.id)}`, { method: "PATCH", body });
-              toast.push("User updated", "success");
-            }}
-            done={() => {
-              setEditing(null);
-              void load();
-            }}
-          />
-        </Modal>
-      )}
+      {adding && <Modal title="New user" onClose={() => setAdding(false)}><UserForm submitLabel="Create user" onSubmit={async (body) => { await api("/api/admin/users", { method: "POST", body }); toast.push("User created", "success"); }} done={() => { setAdding(false); void load(); }} /></Modal>}
+      {editing && <Modal title={`Edit ${editing.email}`} onClose={() => setEditing(null)}><UserForm initial={editing} submitLabel="Save changes" onSubmit={async (body) => { await api(`/api/admin/users/${encodeURIComponent(editing.id)}`, { method: "PATCH", body }); toast.push("User updated", "success"); }} done={() => { setEditing(null); void load(); }} /></Modal>}
     </div>
   );
 }
 
-function UserForm({
-  initial,
-  submitLabel,
-  onSubmit,
-  done,
-}: {
-  initial?: AdminUser;
-  submitLabel: string;
-  onSubmit: (body: { email?: string; password?: string; role?: string }) => Promise<void>;
-  done: () => void;
-}) {
+function UserForm({ initial, submitLabel, onSubmit, done }: { initial?: AdminUser; submitLabel: string; onSubmit: (body: { email: string; password?: string; role: string }) => void | Promise<void>; done: () => void; }) {
+  const toast = useToast();
   const [email, setEmail] = useState(initial?.email ?? "");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState(initial?.role ?? "user");
@@ -219,60 +128,19 @@ function UserForm({
   const [err, setErr] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setErr(null);
-    setBusy(true);
-    try {
-      const body: { email?: string; password?: string; role?: string } = { role };
-      if (!initial) body.email = email;
-      if (password) body.password = password;
-      if (initial && !password) delete body.password;
-      await onSubmit(body);
-      done();
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Request failed");
-    } finally {
-      setBusy(false);
-    }
+    e.preventDefault(); setErr(null); setBusy(true);
+    try { await onSubmit({ email, password, role }); done(); } catch (e) { setErr(e instanceof ApiError ? e.message : "Failed to save user"); } finally { setBusy(false); }
   }
-
   return (
     <form onSubmit={submit} className="modal-form">
-      <label className="field">
-        <span>Email{initial && " (unchanged)"}</span>
-        <input type="email" required={!initial} disabled={!!initial} value={email} onChange={(e) => setEmail(e.target.value)} />
-      </label>
-      <label className="field">
-        <span>{initial ? "Reset password (optional)" : "Password"}</span>
-        <input
-          type="password"
-          required={!initial}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder={initial ? "Leave blank to keep" : "At least 6 characters"}
-        />
-      </label>
-      <label className="field">
-        <span>Role</span>
-        <select value={role} onChange={(e) => setRole(e.target.value)}>
-          <option value="user">user</option>
-          <option value="admin">admin</option>
-        </select>
-      </label>
-      {err && <div className="inline-alert">{err}</div>}
-      <div className="modal-actions">
-        <button type="button" className="btn btn-ghost" onClick={done}>
-          Cancel
-        </button>
-        <button type="submit" className="btn btn-primary" disabled={busy}>
-          {busy ? "Saving…" : submitLabel}
-        </button>
-      </div>
+      <label className="field flex flex-col gap-[7px]"><span className="field-label text-[11px] font-bold tracking-wider uppercase text-text-3">Email</span><div className="field-input-wrap relative flex items-center"><span className="field-icon absolute left-[12px] text-text-3 pointer-events-none">@</span><input className="field-input w-full h-[40px] pl-[36px] pr-[13px] rounded-lg bg-[#000]/26 border border-border text-white text-[13.5px] outline-none focus:border-brand/60 focus:bg-brand/5 focus-visible:ring-3 focus-visible:ring-brand/20 transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]" value={email} onChange={(e) => setEmail(e.target.value)} required /></div></label>
+      <label className="field flex flex-col gap-[7px]"><span className="field-label text-[11px] font-bold tracking-wider uppercase text-text-3">Password</span><div className="field-input-wrap relative flex items-center"><IconPlus size={16} className="field-icon absolute left-[12px] text-text-3 pointer-events-none" /><input className="field-input w-full h-[40px] pl-[36px] pr-[13px] rounded-lg bg-[#000]/26 border border-border text-white text-[13.5px] outline-none focus:border-brand/60 focus:bg-brand/5 focus-visible:ring-3 focus-visible:ring-brand/20 transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} /></div></label>
+      <label className="field flex flex-col gap-[7px]"><span className="field-label text-[11px] font-bold tracking-wider uppercase text-text-3">Role</span><select className="w-full h-[40px] px-[12px] rounded-lg bg-[#000]/26 border border-border text-white text-[13.5px] outline-none focus:border-brand/60 focus:bg-brand/5 focus-visible:ring-3 focus-visible:ring-brand/20 transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]" value={role} onChange={(e) => setRole(e.target.value)}><option value="user">User</option><option value="admin">Admin</option></select></label>
+      {err && <div className="inline-alert flex items-center gap-[8px] px-[13px] py-[10px] rounded-lg text-red-400 bg-red/10 border border-red/30 text-[12.5px]">{err}</div>}
+      <div className="modal-actions flex justify-end gap-[9px] mt-[4px]"><button type="button" className="btn btn-ghost" onClick={done}>Cancel</button><button type="submit" className="btn btn-primary" disabled={busy}>{busy ? <span className="btn-spinner" /> : null}{submitLabel}</button></div>
     </form>
   );
 }
-
-/* ---------------- nodes tab ---------------- */
 
 function NodesTab() {
   const toast = useToast();
@@ -281,224 +149,67 @@ function NodesTab() {
   const [editing, setEditing] = useState<Node | null>(null);
 
   const load = useCallback(async () => {
-    try {
-      const data = await api<{ nodes?: Node[] } | Node[]>("/api/admin/nodes");
-      setNodes(Array.isArray(data) ? data : (data.nodes ?? []));
-    } catch (e) {
-      toast.pushError(e);
-    }
+    try { const data = await api<{ nodes?: Node[] } | Node[]>("/api/admin/nodes"); setNodes(Array.isArray(data) ? data : (data.nodes ?? [])); } catch (e) { toast.pushError(e); }
   }, [toast]);
+  useEffect(() => { void load(); }, [load]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  async function del(n: Node) {
+    if (!window.confirm(`Delete node ${n.name}?`)) return;
+    try { await api(`/api/admin/nodes/${encodeURIComponent(n.id)}`, { method: "DELETE" }); toast.push("Node deleted", "success"); void load(); } catch (e) { toast.pushError(e); }
+  }
 
   return (
-    <div className="card table-card">
-      <div className="table-toolbar">
-        <span className="muted">{nodes?.length ?? 0} nodes</span>
-        <button className="btn btn-primary" onClick={() => setAdding(true)}>
-          + New node
-        </button>
+    <div className="card table-card overflow-hidden">
+      <div className="table-toolbar flex items-center justify-between gap-[12px] px-[15px] py-[13px] border-b border-border bg-white/1">
+        <span className="muted text-[12.5px] font-bold">{nodes?.length ?? 0} nodes</span>
+        <button className="btn btn-primary" onClick={() => setAdding(true)}><IconPlus size={16} className="flex-none" /> New node</button>
       </div>
       <table className="table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Host</th>
-            <th>Daemon port</th>
-            <th>Token</th>
-            <th className="th-actions">Actions</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Name</th><th>Host</th><th>Daemon port</th><th>Token</th><th className="th-actions">Actions</th></tr></thead>
         <tbody>
           {nodes?.map((n) => (
             <tr key={n.id}>
-              <td>{n.name}</td>
-              <td className="mono">{n.host}</td>
-              <td>{n.daemonPort}</td>
-              <td>
-                {n.token ? (
-                  <CopyableSecret token={n.token} />
-                ) : (
-                  <span className="muted">hidden</span>
-                )}
-              </td>
-              <td className="td-actions">
-                <button className="btn btn-ghost btn-sm" onClick={() => setEditing(n)}>
-                  Edit
-                </button>
-                <button
-                  className="btn btn-red btn-sm"
-                  onClick={() => {
-                    if (window.confirm(`Delete node ${n.name}?`))
-                      void api(`/api/admin/nodes/${encodeURIComponent(n.id)}`, { method: "DELETE" })
-                        .then(() => {
-                          toast.push("Node deleted", "success");
-                          return load();
-                        })
-                        .catch((e) => toast.pushError(e));
-                  }}
-                >
-                  Delete
-                </button>
-              </td>
+              <td>{n.name}</td><td className="mono text-[13px]">{n.host}</td><td className="mono text-[13px]">{n.daemonPort}</td><td className="secret flex items-center gap-[6px]"><span className="mono text-[11.5px] trunc max-w-[190px] bg-[#000]/30 border border-border rounded-lg px-[9px] py-[5px] text-[11.5px]">{n.token ?? "—"}</span></td><td className="td-actions flex justify-end gap-[6px]"><button className="btn btn-ghost btn-sm" onClick={() => setEditing(n)}>Edit</button><button className="btn btn-red btn-sm" onClick={() => void del(n)}>Delete</button></td>
             </tr>
           ))}
         </tbody>
       </table>
-
-      {adding && (
-        <Modal title="New node" onClose={() => setAdding(false)}>
-          <NodeForm
-            submitLabel="Create node"
-            onSubmit={async (body) => {
-              await api("/api/admin/nodes", { method: "POST", body });
-              toast.push("Node created", "success");
-            }}
-            done={() => {
-              setAdding(false);
-              void load();
-            }}
-          />
-        </Modal>
-      )}
-      {editing && (
-        <Modal title={`Edit ${editing.name}`} onClose={() => setEditing(null)}>
-          <NodeForm
-            initial={editing}
-            submitLabel="Save changes"
-            onSubmit={async (body) => {
-              await api(`/api/admin/nodes/${encodeURIComponent(editing.id)}`, { method: "PATCH", body });
-              toast.push("Node updated", "success");
-            }}
-            done={() => {
-              setEditing(null);
-              void load();
-            }}
-          />
-        </Modal>
-      )}
+      {adding && <Modal title="New node" onClose={() => setAdding(false)}><NodeForm onSubmit={async (body) => { await api("/api/admin/nodes", { method: "POST", body }); toast.push("Node created", "success"); }} done={() => { setAdding(false); void load(); }} /></Modal>}
+      {editing && <Modal title={`Edit ${editing.name}`} onClose={() => setEditing(null)}><NodeForm initial={editing} onSubmit={async (body) => { await api(`/api/admin/nodes/${encodeURIComponent(editing.id)}`, { method: "PATCH", body }); toast.push("Node updated", "success"); }} done={() => { setEditing(null); void load(); }} /></Modal>}
     </div>
   );
 }
 
-function CopyableSecret({ token }: { token: string }) {
+function NodeForm({ initial, onSubmit, done }: { initial?: Node; onSubmit: (body: Partial<Node>) => void | Promise<void>; done: () => void; }) {
   const toast = useToast();
-  const [revealed, setRevealed] = useState(false);
-  const display = useMemo(() => {
-    if (revealed) return token;
-    return `${token.slice(0, 4)}${"•".repeat(Math.max(4, Math.min(token.length - 8, 16)))}${token.slice(-4)}`;
-  }, [token, revealed]);
-  return (
-    <span className="secret">
-      <input
-        className="mono secret-input"
-        readOnly
-        value={display}
-        onFocus={(e) => e.currentTarget.select()}
-      />
-      <button className="btn btn-ghost btn-sm" title="Reveal" onClick={() => setRevealed((v) => !v)}>
-        {revealed ? "🙈" : "👁"}
-      </button>
-      <button
-        className="btn btn-ghost btn-sm"
-        title="Copy"
-        onClick={() => {
-          void navigator.clipboard
-            .writeText(token)
-            .then(() => toast.push("Token copied", "success"))
-            .catch(() => toast.push("Copy failed", "error"));
-        }}
-      >
-        ⧉
-      </button>
-    </span>
-  );
-}
-
-function NodeForm({
-  initial,
-  submitLabel,
-  onSubmit,
-  done,
-}: {
-  initial?: Node;
-  submitLabel: string;
-  onSubmit: (body: { name: string; host: string; daemonPort: number; token?: string }) => Promise<void>;
-  done: () => void;
-}) {
   const [name, setName] = useState(initial?.name ?? "");
   const [host, setHost] = useState(initial?.host ?? "");
-  const [daemonPort, setDaemonPort] = useState(String(initial?.daemonPort ?? 8080));
-  const [token, setToken] = useState("");
+  const [daemonPort, setDaemonPort] = useState(initial?.daemonPort ?? 8080);
+  const [token, setToken] = useState(initial?.token ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-
   async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setErr(null);
-    setBusy(true);
-    try {
-      const body: { name: string; host: string; daemonPort: number; token?: string } = {
-        name,
-        host,
-        daemonPort: Number(daemonPort) || 8080,
-      };
-      if (token) body.token = token;
-      await onSubmit(body);
-      done();
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Request failed");
-    } finally {
-      setBusy(false);
-    }
+    e.preventDefault(); setErr(null); setBusy(true);
+    try { await onSubmit({ name, host, daemonPort, token }); done(); } catch (e) { setErr(e instanceof ApiError ? e.message : "Failed to save node"); } finally { setBusy(false); }
   }
-
   return (
     <form onSubmit={submit} className="modal-form">
-      <label className="field">
-        <span>Name</span>
-        <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="eu-west-1" />
-      </label>
-      <label className="field">
-        <span>Host</span>
-        <input required value={host} onChange={(e) => setHost(e.target.value)} placeholder="10.0.0.5" />
-      </label>
-      <label className="field">
-        <span>Daemon port</span>
-        <input type="number" value={daemonPort} onChange={(e) => setDaemonPort(e.target.value)} />
-      </label>
-      <label className="field">
-        <span>{initial ? "Token (leave blank to keep)" : "Token"}</span>
-        <input
-          className="mono"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          placeholder={initial ? "Leave blank to keep" : "Shared daemon secret"}
-        />
-      </label>
-      {err && <div className="inline-alert">{err}</div>}
-      <div className="modal-actions">
-        <button type="button" className="btn btn-ghost" onClick={done}>
-          Cancel
-        </button>
-        <button type="submit" className="btn btn-primary" disabled={busy}>
-          {busy ? "Saving…" : submitLabel}
-        </button>
-      </div>
+      <label className="field flex flex-col gap-[7px]"><span className="field-label text-[11px] font-bold tracking-wider uppercase text-text-3">Name</span><input className="field-input w-full h-[40px] px-[13px] rounded-lg bg-[#000]/26 border border-border text-white text-[13.5px] outline-none focus:border-brand/60 focus:bg-brand/5 focus-visible:ring-3 focus-visible:ring-brand/20 transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]" value={name} onChange={(e) => setName(e.target.value)} required /></label>
+      <label className="field flex flex-col gap-[7px]"><span className="field-label text-[11px] font-bold tracking-wider uppercase text-text-3">Host</span><input className="field-input w-full h-[40px] px-[13px] rounded-lg bg-[#000]/26 border border-border text-white text-[13.5px] outline-none focus:border-brand/60 focus:bg-brand/5 focus-visible:ring-3 focus-visible:ring-brand/20 transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]" value={host} onChange={(e) => setHost(e.target.value)} required /></label>
+      <label className="field flex flex-col gap-[7px]"><span className="field-label text-[11px] font-bold tracking-wider uppercase text-text-3">Daemon port</span><input className="field-input w-full h-[40px] px-[13px] rounded-lg bg-[#000]/26 border border-border text-white text-[13.5px] outline-none focus:border-brand/60 focus:bg-brand/5 focus-visible:ring-3 focus-visible:ring-brand/20 transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]" type="number" value={daemonPort} onChange={(e) => setDaemonPort(Number(e.target.value) || 8080)} required /></label>
+      <label className="field flex flex-col gap-[7px]"><span className="field-label text-[11px] font-bold tracking-wider uppercase text-text-3">Node token</span><input className="field-input w-full h-[40px] px-[13px] rounded-lg bg-[#000]/26 border border-border text-white text-[13.5px] outline-none focus:border-brand/60 focus:bg-brand/5 focus-visible:ring-3 focus-visible:ring-brand/20 transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]" value={token} onChange={(e) => setToken(e.target.value)} required /></label>
+      {err && <div className="inline-alert flex items-center gap-[8px] px-[13px] py-[10px] rounded-lg text-red-400 bg-red/10 border border-red/30 text-[12.5px]">{err}</div>}
+      <div className="modal-actions flex justify-end gap-[9px] mt-[4px]"><button type="button" className="btn btn-ghost" onClick={done}>Cancel</button><button type="submit" className="btn btn-primary" disabled={busy}>{busy ? <span className="btn-spinner" /> : null}{initial ? "Save node" : "Create node"}</button></div>
     </form>
   );
 }
 
-/* ---------------- servers tab ---------------- */
-
 function ServersTab() {
   const toast = useToast();
+  const { user: me } = useAuth();
   const [servers, setServers] = useState<AdminServer[] | null>(null);
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [nodes, setNodes] = useState<Node[]>([]);
-  const [eggs, setEggs] = useState<Egg[]>([]);
+  const [users, setUsers] = useState<AdminUser[] | null>(null);
+  const [nodes, setNodes] = useState<Node[] | null>(null);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<AdminServer | null>(null);
 
@@ -512,380 +223,77 @@ function ServersTab() {
       setServers(Array.isArray(s) ? s : (s.servers ?? []));
       setUsers(Array.isArray(u) ? u : (u.users ?? []));
       setNodes(Array.isArray(n) ? n : (n.nodes ?? []));
-    } catch (e) {
-      toast.pushError(e);
-    }
+    } catch (e) { toast.pushError(e); }
   }, [toast]);
+  useEffect(() => { void load(); }, [load]);
 
-  // Reload eggs once per "New server" open; a failed egg load shouldn't block the manual flow.
-  useEffect(() => {
-    if (!adding) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await api<{ eggs?: Egg[] } | Egg[]>("/api/admin/eggs");
-        if (!cancelled) setEggs(Array.isArray(data) ? data : (data.eggs ?? []));
-      } catch {
-        if (!cancelled) setEggs([]);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [adding]);
+  async function del(s: AdminServer) {
+    if (!window.confirm(`Delete server ${s.name}?`)) return;
+    try { await api(`/api/admin/servers/${encodeURIComponent(s.id)}`, { method: "DELETE" }); toast.push("Server deleted", "success"); void load(); } catch (e) { toast.pushError(e); }
+  }
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const statusClass = (st?: string | null) => {
+    const s = (st ?? "").toLowerCase();
+    return s === "running" || s === "started" || s === "online" ? "badge-green" : s === "stopped" || s === "exited" || s === "" || s === "offline" ? "badge-gray" : s === "starting" || s === "restarting" ? "badge-blue" : s === "killed" || s === "error" ? "badge-red" : "badge-yellow";
+  };
 
   return (
-    <div className="card table-card">
-      <div className="table-toolbar">
-        <span className="muted">{servers?.length ?? 0} servers</span>
-        <button className="btn btn-primary" onClick={() => setAdding(true)}>
-          + New server
-        </button>
+    <div className="card table-card overflow-hidden">
+      <div className="table-toolbar flex items-center justify-between gap-[12px] px-[15px] py-[13px] border-b border-border bg-white/1">
+        <span className="muted text-[12.5px] font-bold">{servers?.length ?? 0} servers</span>
+        <button className="btn btn-primary" onClick={() => setAdding(true)}><IconPlus size={16} className="flex-none" /> New server</button>
       </div>
       <table className="table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Owner</th>
-            <th>Node</th>
-            <th>Image</th>
-            <th>Port</th>
-            <th>Status</th>
-            <th className="th-actions">Actions</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Owner</th><th>Name</th><th>Image</th><th>Ports</th><th>Status</th><th className="th-actions">Actions</th></tr></thead>
         <tbody>
-          {servers?.map((s) => (
-            <tr key={s.id}>
-              <td>{s.name}</td>
-              <td>{users.find((u) => u.id === s.userId)?.email ?? <span className="muted">{s.userId}</span>}</td>
-              <td>{nodes.find((n) => n.id === s.nodeId)?.name ?? <span className="muted">{s.nodeId}</span>}</td>
-              <td className="mono trunc">{s.image}</td>
-              <td>
-                {s.port ?? "—"}
-                {s.ports && s.ports.length > 0 && (
-                  <div className="mono muted row-ports">
-                    {s.ports.map((p) => `${p.port}/${p.protocol}`).join(" · ")}
-                  </div>
-                )}
-              </td>
-              <td>
-                <span className={`status-badge ${statusClass(s.status)}`}>{(s.status ?? "").toLowerCase() || "unknown"}</span>
-              </td>
-              <td className="td-actions">
-                <button className="btn btn-ghost btn-sm" onClick={() => setEditing(s)}>
-                  Edit
-                </button>
-                <button
-                  className="btn btn-red btn-sm"
-                  onClick={() => {
-                    if (window.confirm(`Delete server ${s.name}?`))
-                      void api(`/api/admin/servers/${encodeURIComponent(s.id)}`, { method: "DELETE" })
-                        .then(() => {
-                          toast.push("Server deleted", "success");
-                          return load();
-                        })
-                        .catch((e) => toast.pushError(e));
-                    }}
-                >
-                  Delete
-                </button>
-              </td>
-            </tr>
-          ))}
+          {servers?.map((s) => {
+            const owner = users?.find((u) => u.id === s.userId)?.email ?? s.userId;
+            const node = nodes?.find((n) => n.id === s.nodeId);
+            return (
+              <tr key={s.id}>
+                <td>{owner}</td>
+                <td>{s.name}</td>
+                <td className="mono trunc text-[13px]">{s.image}</td>
+                <td className="row-ports flex flex-wrap gap-[4px]">{s.ports?.map((p) => (<span className="px-[2px] py-[1px] rounded-[4px] text-[10px] font-bold text-text-2 bg-white/4 border border-border" key={`${p.port}-${p.protocol}`}>{p.port}/{p.protocol}</span>))}</td>
+                <td><span className={`status-badge ${statusClass(s.status)}`}>{(s.status ?? "").toLowerCase() || "unknown"}</span></td>
+                <td className="td-actions flex justify-end gap-[6px]"><button className="btn btn-ghost btn-sm" onClick={() => setEditing(s)}>Edit</button><button className="btn btn-red btn-sm" onClick={() => void del(s)}>Delete</button></td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
-
-      {adding && (
-        <Modal title="New server" onClose={() => setAdding(false)}>
-          <ServerForm users={users} nodes={nodes} eggs={eggs} submitLabel="Create server" onSubmit={async (body) => {
-            await api("/api/admin/servers", { method: "POST", body });
-            toast.push("Server created", "success");
-          }} done={() => { setAdding(false); void load(); }} />
-        </Modal>
-      )}
-      {editing && (
-        <Modal title={`Edit ${editing.name}`} onClose={() => setEditing(null)}>
-          <ServerForm users={users} nodes={nodes} initial={editing} submitLabel="Save changes" onSubmit={async (body) => {
-            await api(`/api/admin/servers/${encodeURIComponent(editing.id)}`, { method: "PATCH", body });
-            toast.push("Server updated", "success");
-          }} done={() => { setEditing(null); void load(); }} />
-        </Modal>
-      )}
+      {adding && <Modal title="New server" onClose={() => setAdding(false)}><ServerForm onSubmit={async (body) => { await api("/api/admin/servers", { method: "POST", body }); toast.push("Server created", "success"); }} done={() => { setAdding(false); void load(); }} eggs={[]} users={users ?? []} nodes={nodes ?? []} /></Modal>}
+      {editing && <Modal title={`Edit ${editing.name}`} onClose={() => setEditing(null)}><ServerForm initial={editing} onSubmit={async (body) => { await api(`/api/admin/servers/${encodeURIComponent(editing.id)}`, { method: "PATCH", body }); toast.push("Server updated", "success"); }} done={() => { setEditing(null); void load(); }} eggs={[]} users={users ?? []} nodes={nodes ?? []} /></Modal>}
     </div>
   );
 }
 
-function statusClass(status?: string | null) {
-  const s = (status ?? "").toLowerCase();
-  if (s === "running" || s === "started" || s === "online") return "badge-green";
-  if (s === "stopped" || s === "exited" || s === "offline" || !s) return "badge-gray";
-  if (s === "killed" || s === "error") return "badge-red";
-  if (s === "starting" || s === "restarting") return "badge-blue";
-  return "badge-yellow";
-}
-
-type PortDraft = { port: string; protocol: "tcp" | "udp" };
-
-function ServerForm({
-  users,
-  nodes,
-  eggs,
-  initial,
-  submitLabel,
-  onSubmit,
-  done,
-}: {
-  users: AdminUser[];
-  nodes: Node[];
-  eggs?: Egg[];
-  initial?: AdminServer;
-  submitLabel: string;
-  onSubmit: (body: Record<string, unknown>) => Promise<void>;
-  done: () => void;
-}) {
-  const isEdit = !!initial;
+function ServerForm({ initial, onSubmit, done, eggs, users, nodes }: { initial?: AdminServer; onSubmit: (body: Partial<AdminServer>) => void | Promise<void>; done: () => void; eggs: Egg[]; users: AdminUser[]; nodes: Node[]; }) {
+  const toast = useToast();
   const [name, setName] = useState(initial?.name ?? "");
+  const [image, setImage] = useState(initial?.image ?? "");
   const [userId, setUserId] = useState(initial?.userId ?? "");
   const [nodeId, setNodeId] = useState(initial?.nodeId ?? "");
-  const [eggId, setEggId] = useState("custom");
-  const [image, setImage] = useState(initial?.image ?? "");
-  const [memoryMB, setMemoryMB] = useState(initial?.memoryMB != null ? String(initial.memoryMB) : "512");
-  const [cpus, setCpus] = useState(initial?.cpus != null ? String(initial.cpus) : "1");
-  const [backupEveryHours, setBackupEveryHours] = useState("");
-  // env as key=value list editor
-  const [envEntries, setEnvEntries] = useState<{ k: string; v: string }[]>(
-    Object.entries(initial?.env ?? {}).map(([k, v]) => ({ k, v: String(v) }))
-  );
-  const [ports, setPorts] = useState<PortDraft[]>(() => {
-    if (initial?.ports?.length) {
-      return initial.ports.map((p) => ({ port: String(p.port), protocol: p.protocol === "udp" ? "udp" : "tcp" }));
-    }
-    if (initial?.port != null) return [{ port: String(initial.port), protocol: "tcp" }];
-    return [{ port: "", protocol: "tcp" }];
-  });
+  const [memoryMB, setMemoryMB] = useState(String(initial?.memoryMB ?? ""));
+  const [cpus, setCpus] = useState(String(initial?.cpus ?? ""));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-
-  const egg = !isEdit && eggId !== "custom" ? eggs?.find((e) => e.id === eggId) : undefined;
-
-  // Switching template auto-fills the form (all fields stay editable for overrides).
-  function onEggChange(id: string) {
-    setEggId(id);
-    if (id === "custom") {
-      setImage("");
-      setEnvEntries([]);
-      setPorts([{ port: "", protocol: "tcp" }]);
-      setMemoryMB("512");
-      setCpus("1");
-      return;
-    }
-    const next = eggs?.find((e) => e.id === id);
-    if (!next) return;
-    setImage(next.image);
-    setEnvEntries(Object.entries(next.env ?? {}).map(([k, v]) => ({ k, v: String(v) })));
-    setPorts((next.ports ?? []).map((p) => ({ port: String(p.port), protocol: p.protocol === "udp" ? "udp" : "tcp" })));
-    setMemoryMB(next.memoryMB != null ? String(next.memoryMB) : "512");
-    setCpus(next.cpus != null ? String(next.cpus) : "1");
-  }
-
   async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setErr(null);
-    setBusy(true);
-    try {
-      const env: Record<string, string> = {};
-      for (const { k, v } of envEntries) if (k.trim()) env[k.trim()] = v;
-      const portsArr = ports
-        .filter((p) => p.port !== "" && Number(p.port) > 0)
-        .map((p) => ({ port: Number(p.port), protocol: p.protocol }));
-      const firstTcp = portsArr.find((p) => p.protocol === "tcp");
-      const body: Record<string, unknown> = {
-        name,
-        userId,
-        nodeId,
-        env,
-        ports: portsArr,
-        port: firstTcp ? firstTcp.port : null,
-        memoryMB: memoryMB ? Number(memoryMB) : undefined,
-        cpus: cpus ? Number(cpus) : undefined,
-      };
-      if (isEdit) {
-        body.image = image;
-      } else {
-        body.eggId = eggId;
-        // For egg-based servers, only send image when the admin changed it
-        // (omitted means "use the egg's image" server-side).
-        if (!egg || image !== egg.image) body.image = image;
-        if (backupEveryHours) body.backupEveryHours = Number(backupEveryHours);
-      }
-      await onSubmit(body);
-      done();
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Request failed");
-    } finally {
-      setBusy(false);
-    }
+    e.preventDefault(); setErr(null); setBusy(true);
+    try { await onSubmit({ name, image, userId, nodeId, memoryMB: Number(memoryMB) || undefined, cpus: Number(cpus) || undefined }); done(); } catch (e) { setErr(e instanceof ApiError ? e.message : "Failed to save server"); } finally { setBusy(false); }
   }
-
   return (
     <form onSubmit={submit} className="modal-form">
-      {!isEdit && (
-        <label className="field">
-          <span>Egg / template</span>
-          <select value={eggId} onChange={(e) => onEggChange(e.target.value)}>
-            <option value="custom">Custom / advanced</option>
-            {(eggs ?? []).map((egg) => (
-              <option key={egg.id} value={egg.id}>
-                {egg.name}
-              </option>
-            ))}
-          </select>
-          {egg?.description && <div className="muted field-help">{egg.description}</div>}
-        </label>
-      )}
-      <label className="field">
-        <span>Name</span>
-        <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="My Minecraft server" />
-      </label>
-      <div className="field-row">
-        <label className="field">
-          <span>Owner (user)</span>
-          <select required value={userId} onChange={(e) => setUserId(e.target.value)}>
-            <option value="" disabled>
-              Select user…
-            </option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.email} ({u.role})
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>Node</span>
-          <select required value={nodeId} onChange={(e) => setNodeId(e.target.value)}>
-            <option value="" disabled>
-              Select node…
-            </option>
-            {nodes.map((n) => (
-              <option key={n.id} value={n.id}>
-                {n.name}
-              </option>
-            ))}
-          </select>
-        </label>
+      <label className="field flex flex-col gap-[7px]"><span className="field-label text-[11px] font-bold tracking-wider uppercase text-text-3">Name</span><input className="field-input w-full h-[40px] px-[13px] rounded-lg bg-[#000]/26 border border-border text-white text-[13.5px] outline-none focus:border-brand/60 focus:bg-brand/5 focus-visible:ring-3 focus-visible:ring-brand/20 transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]" value={name} onChange={(e) => setName(e.target.value)} required /></label>
+      <label className="field flex flex-col gap-[7px]"><span className="field-label text-[11px] font-bold tracking-wider uppercase text-text-3">Image</span><input className="field-input w-full h-[40px] px-[13px] rounded-lg bg-[#000]/26 border border-border text-white text-[13.5px] outline-none focus:border-brand/60 focus:bg-brand/5 focus-visible:ring-3 focus-visible:ring-brand/20 transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]" value={image} onChange={(e) => setImage(e.target.value)} required /></label>
+      <label className="field flex flex-col gap-[7px]"><span className="field-label text-[11px] font-bold tracking-wider uppercase text-text-3">Owner</span><select className="w-full h-[40px] px-[12px] rounded-lg bg-[#000]/26 border border-border text-white text-[13.5px] outline-none focus:border-brand/60 focus:bg-brand/5 focus-visible:ring-3 focus-visible:ring-brand/20 transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]" value={userId} onChange={(e) => setUserId(e.target.value)} required>{users.map((u) => (<option key={u.id} value={u.id}>{u.email}</option>))}</select></label>
+      <label className="field flex flex-col gap-[7px]"><span className="field-label text-[11px] font-bold tracking-wider uppercase text-text-3">Node</span><select className="w-full h-[40px] px-[12px] rounded-lg bg-[#000]/26 border border-border text-white text-[13.5px] outline-none focus:border-brand/60 focus:bg-brand/5 focus-visible:ring-3 focus-visible:ring-brand/20 transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]" value={nodeId} onChange={(e) => setNodeId(e.target.value)} required>{nodes.map((n) => (<option key={n.id} value={n.id}>{n.name}</option>))}</select></label>
+      <div className="field-row grid grid-cols-[1fr_1fr] gap-[12px]">
+        <label className="field flex flex-col gap-[7px]"><span className="field-label text-[11px] font-bold tracking-wider uppercase text-text-3">Memory (MB)</span><input className="field-input w-full h-[40px] px-[13px] rounded-lg bg-[#000]/26 border border-border text-white text-[13.5px] outline-none focus:border-brand/60 focus:bg-brand/5 focus-visible:ring-3 focus-visible:ring-brand/20 transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]" type="number" value={memoryMB} onChange={(e) => setMemoryMB(e.target.value)} /></label>
+        <label className="field flex flex-col gap-[7px]"><span className="field-label text-[11px] font-bold tracking-wider uppercase text-text-3">CPUs</span><input className="field-input w-full h-[40px] px-[13px] rounded-lg bg-[#000]/26 border border-border text-white text-[13.5px] outline-none focus:border-brand/60 focus:bg-brand/5 focus-visible:ring-3 focus-visible:ring-brand/20 transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]" type="number" value={cpus} onChange={(e) => setCpus(e.target.value)} /></label>
       </div>
-      <label className="field">
-        <span>{egg ? `Image (from ${egg.name})` : "Image"}</span>
-        <input
-          required={isEdit || eggId === "custom"}
-          value={image}
-          onChange={(e) => setImage(e.target.value)}
-          placeholder={egg ? egg.image || "ghcr.io/library/minecraft" : "ghcr.io/library/minecraft"}
-          className="mono"
-        />
-      </label>
-      <div className="field">
-        <span>Ports</span>
-        <div className="env-editor">
-          {ports.map((p, i) => (
-            <div className="env-row port-row" key={i}>
-              <input
-                type="number"
-                min="0"
-                value={p.port}
-                onChange={(e) => setPorts((arr) => arr.map((x, j) => (j === i ? { ...x, port: e.target.value } : x)))}
-                placeholder="Port"
-              />
-              <select
-                value={p.protocol}
-                onChange={(e) =>
-                  setPorts((arr) =>
-                    arr.map((x, j) => (j === i ? { ...x, protocol: e.target.value === "udp" ? "udp" : "tcp" } : x))
-                  )
-                }
-              >
-                <option value="tcp">tcp</option>
-                <option value="udp">udp</option>
-              </select>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={() => setPorts((arr) => arr.filter((_, j) => j !== i))}
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPorts((arr) => [...arr, { port: "", protocol: "tcp" }])}>
-            + Add port
-          </button>
-        </div>
-      </div>
-      <div className="field-row">
-        <label className="field">
-          <span>Memory (MB)</span>
-          <input type="number" value={memoryMB} onChange={(e) => setMemoryMB(e.target.value)} />
-        </label>
-        <label className="field">
-          <span>CPUs</span>
-          <input type="number" step="0.1" value={cpus} onChange={(e) => setCpus(e.target.value)} />
-        </label>
-        {!isEdit && (
-          <label className="field">
-            <span>Backup every (h)</span>
-            <input
-              type="number"
-              min="0"
-              value={backupEveryHours}
-              onChange={(e) => setBackupEveryHours(e.target.value)}
-              placeholder="Optional"
-            />
-          </label>
-        )}
-      </div>
-      <div className="field">
-        <span>Environment variables</span>
-        <div className="env-editor">
-          {envEntries.map((entry, i) => (
-            <div className="env-row" key={i}>
-              <input
-                value={entry.k}
-                onChange={(e) => setEnvEntries((arr) => arr.map((x, j) => (j === i ? { ...x, k: e.target.value } : x)))}
-                placeholder="KEY"
-                className="mono"
-              />
-              <span className="env-eq">=</span>
-              <input
-                value={entry.v}
-                onChange={(e) => setEnvEntries((arr) => arr.map((x, j) => (j === i ? { ...x, v: e.target.value } : x)))}
-                placeholder="value"
-                className="mono"
-              />
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEnvEntries((arr) => arr.filter((_, j) => j !== i))}>
-                ✕
-              </button>
-            </div>
-          ))}
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEnvEntries((arr) => [...arr, { k: "", v: "" }])}>
-            + Add variable
-          </button>
-        </div>
-      </div>
-      {err && <div className="inline-alert">{err}</div>}
-      <div className="modal-actions">
-        <button type="button" className="btn btn-ghost" onClick={done}>
-          Cancel
-        </button>
-        <button type="submit" className="btn btn-primary" disabled={busy}>
-          {busy ? "Saving…" : submitLabel}
-        </button>
-      </div>
+      {err && <div className="inline-alert flex items-center gap-[8px] px-[13px] py-[10px] rounded-lg text-red-400 bg-red/10 border border-red/30 text-[12.5px]">{err}</div>}
+      <div className="modal-actions flex justify-end gap-[9px] mt-[4px]"><button type="button" className="btn btn-ghost" onClick={done}>Cancel</button><button type="submit" className="btn btn-primary" disabled={busy}>{busy ? <span className="btn-spinner" /> : null}{initial ? "Save server" : "Create server"}</button></div>
     </form>
   );
 }

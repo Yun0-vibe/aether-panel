@@ -1,6 +1,8 @@
 import type { Node, Server } from "./db.js";
 
 const TIMEOUT = 15_000;
+/** Status polling must fail fast — an offline node must not freeze the dashboard. */
+const STATUS_TIMEOUT = 3_000;
 
 export function daemonBase(node: Node) {
   return `http://${node.host}:${node.daemon_port}`;
@@ -10,6 +12,7 @@ export async function daemonFetch(
   node: Node,
   path: string,
   init: RequestInit = {},
+  timeoutMs: number = TIMEOUT,
 ): Promise<Response> {
   return fetch(daemonBase(node) + path, {
     ...init,
@@ -18,7 +21,7 @@ export async function daemonFetch(
       Authorization: `Bearer ${node.token}`,
       ...(init.headers ?? {}),
     },
-    signal: AbortSignal.timeout(TIMEOUT),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 }
 
@@ -53,7 +56,7 @@ export async function statuses(
       const node = nodes.get(s.node_id);
       if (!node) return [s.id, "no-node"] as const;
       try {
-        const res = await daemonFetch(node, `/v1/servers/${s.id}`);
+        const res = await daemonFetch(node, `/v1/servers/${s.id}`, {}, STATUS_TIMEOUT);
         if (!res.ok) return [s.id, "unknown"] as const;
         const data = (await res.json()) as { server?: { status?: string } };
         return [s.id, data.server?.status ?? "unknown"] as const;
