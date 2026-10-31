@@ -8,6 +8,7 @@
 
 /* ---------- CSS custom properties (tokens) ---------- */
 :root {
+  color-scheme: dark;
   --bg: #05070d;
   --bg-2: #070a13;
   --surface: rgba(14, 20, 36, 0.72);
@@ -70,6 +71,17 @@ select,
 textarea {
   font: inherit;
   color: inherit;
+}
+
+/* Native <select> popups render in the OS theme — keep them dark
+   so the highlighted/hovered options don't wash out to white-on-blue. */
+select {
+  color-scheme: dark;
+}
+select option,
+select optgroup {
+  background-color: #0d1424;
+  color: var(--text);
 }
 
 h1,

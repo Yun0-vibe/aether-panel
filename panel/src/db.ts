@@ -173,6 +173,50 @@ const EGG_SEED: Egg[] = [
     cpus: 1,
     sort: 50,
   },
+  {
+    id: "discord-js",
+    name: "Discord Bot (Node.js)",
+    description: "discord.js bot on Node 20. Upload your code, set STARTUP_FILE (e.g. index.js) and DISCORD_TOKEN in env.",
+    image: "node:20-bookworm-slim",
+    ports: JSON.stringify([]),
+    env: JSON.stringify({ STARTUP_FILE: "index.js", DISCORD_TOKEN: "" }),
+    memory_mb: 512,
+    cpus: 0.5,
+    sort: 110,
+  },
+  {
+    id: "nodejs-app",
+    name: "Node.js App",
+    description: "Generic Node 20 app. Set STARTUP_FILE; add PORT if it listens on HTTP (3000 pre-mapped).",
+    image: "node:20-bookworm-slim",
+    ports: JSON.stringify([{ port: 3000, protocol: "tcp" }]),
+    env: JSON.stringify({ STARTUP_FILE: "index.js", PORT: "3000" }),
+    memory_mb: 1024,
+    cpus: 1,
+    sort: 111,
+  },
+  {
+    id: "discord-py",
+    name: "Discord Bot (Python)",
+    description: "discord.py bot on Python 3.12. Upload your code, set STARTUP_FILE (e.g. main.py) and DISCORD_TOKEN in env.",
+    image: "python:3.12-slim",
+    ports: JSON.stringify([]),
+    env: JSON.stringify({ STARTUP_FILE: "main.py", DISCORD_TOKEN: "" }),
+    memory_mb: 512,
+    cpus: 0.5,
+    sort: 120,
+  },
+  {
+    id: "python-app",
+    name: "Python App",
+    description: "Generic Python 3.12 app. Set STARTUP_FILE; add PORT if it listens on HTTP (8080 pre-mapped).",
+    image: "python:3.12-slim",
+    ports: JSON.stringify([{ port: 8080, protocol: "tcp" }]),
+    env: JSON.stringify({ STARTUP_FILE: "main.py", PORT: "8080" }),
+    memory_mb: 1024,
+    cpus: 1,
+    sort: 121,
+  },
 ];
 
 export const CUSTOM_EGG_ID = "custom";
@@ -181,6 +225,8 @@ export const CUSTOM_EGG_ID = "custom";
 const NEST_SEED: Nest[] = [
   { id: "minecraft", name: "Minecraft", sort: 10 },
   { id: "game-servers", name: "Game Servers", sort: 100 },
+  { id: "javascript", name: "JavaScript / Node", sort: 110 },
+  { id: "python", name: "Python", sort: 120 },
 ];
 
 export function seedNests() {
@@ -192,7 +238,14 @@ export function seedNests() {
 }
 
 export function seedEggs() {
-  const nestFor = (eggId: string) => (eggId.startsWith("minecraft") ? "minecraft" : "game-servers");
+  const nestFor = (eggId: string) =>
+    eggId.startsWith("minecraft")
+      ? "minecraft"
+      : eggId === "discord-js" || eggId === "nodejs-app"
+        ? "javascript"
+        : eggId === "discord-py" || eggId === "python-app"
+          ? "python"
+          : "game-servers";
   const ins = db.prepare(
     `INSERT INTO eggs (id, name, description, image, ports, env, memory_mb, cpus, sort, nest_id)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { api, ApiError, useAuth } from "../auth/AuthContext";
 import type { ServerSummary, User } from "../auth/AuthContext";
 import { useToast } from "../components/Toasts";
-import { IconClose, IconPlus, IconUsers, IconLayers, IconServer, IconActivity, IconZap, IconShield, IconRocket, IconArchive } from "../components/Icons";
+import { IconClose, IconPlus, IconUsers, IconLayers, IconServer, IconActivity, IconShield, IconRocket, IconArchive } from "../components/Icons";
 import { RoleBadge } from "../components/RoleBadge";
 
 type AdminUser = User;
@@ -118,7 +118,12 @@ function QuickCard({ to, icon, title, sub }: { to: string; icon: React.ReactNode
         <span className="text-[14.5px] font-bold text-white">{title}</span>
         <span className="mt-[2px] text-[12px] text-text-3">{sub}</span>
       </div>
-      <IconZap size={16} className="ml-auto flex-none text-text-3 transition-all duration-200 group-hover:text-fuchsia-300" />
+      <span
+        className="ml-auto grid h-[26px] w-[26px] flex-none shrink-0 place-items-center rounded-[9px] border border-border bg-white/4 text-[16px] font-bold leading-none text-text-3 transition-all duration-200 group-hover:border-fuchsia-400/40 group-hover:bg-fuchsia-400/10 group-hover:text-fuchsia-300"
+        aria-hidden="true"
+      >
+        ›
+      </span>
     </Link>
   );
 }
