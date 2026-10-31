@@ -32,6 +32,10 @@ fi
 . .env
 
 if [ "$RUN" = 1 ]; then
+  echo "==> stopping any previous panel/daemon processes"
+  pkill -f "node panel/dist/main.js" 2>/dev/null || true
+  pkill -f "daemon/bin/daemon" 2>/dev/null || true
+  sleep 1
   echo "==> starting (background processes, logs in ~/.aether/logs)"
   NO_DOCKER_WARN=1 AETHER_TOKEN="${AETHER_NODE_TOKEN}" AETHER_PORT=8080 \
     AETHER_DATA_DIR="$HOME/.aether/data" nohup daemon/bin/daemon \
@@ -39,6 +43,8 @@ if [ "$RUN" = 1 ]; then
   AETHER_PANEL_PORT="${AETHER_PANEL_PORT:-3000}" AETHER_DB_FILE="$HOME/.aether/panel.db" \
     nohup node panel/dist/main.js > "$HOME/.aether/logs/panel.log" 2>&1 &
   sleep 2
+  echo "build: $(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  echo "panel pid: $(pgrep -f "node panel/dist/main.js" 2>/dev/null || echo 'NOT RUNNING')"
   curl -fsS "http://127.0.0.1:${AETHER_PANEL_PORT:-3000}/healthz" 2>/dev/null \
     && echo "panel: healthy" || echo "panel: booting (check ~/.aether/logs/panel.log)"
   echo
