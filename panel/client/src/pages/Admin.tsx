@@ -5,6 +5,7 @@ import type { ServerSummary, User } from "../auth/AuthContext";
 import { useToast } from "../components/Toasts";
 import { AetherMark, IconClose, IconPlus, IconUsers, IconLayers, IconServer, IconActivity, IconShield, IconRocket, IconArchive, IconSparkle } from "../components/Icons";
 import { RoleBadge } from "../components/RoleBadge";
+import { ImageDrop } from "../components/ImageDrop";
 import { useBranding } from "../brand/BrandContext";
 
 type AdminUser = User;
@@ -364,14 +365,21 @@ export function BrandingTab() {
             <span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Tagline</span>
             <input className={FIELD} value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder="e.g. Deploy at the speed of thought" />
           </label>
-          <label className="flex flex-col gap-[7px]">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Logo URL</span>
-            <input className={FIELD + " font-mono !text-[12.5px]"} value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://…/logo.png (blank = built-in mark)" />
-          </label>
-          <label className="flex flex-col gap-[7px]">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Favicon URL</span>
-            <input className={FIELD + " font-mono !text-[12.5px]"} value={faviconUrl} onChange={(e) => setFaviconUrl(e.target.value)} placeholder="https://…/favicon.png (blank = built-in)" />
-          </label>
+          <ImageDrop
+            label="Logo"
+            url={logoUrl}
+            onChange={(u) => setLogoUrl(u)}
+            upload={(dataUrl) => api<{ url: string }>("/api/admin/branding/upload", { method: "POST", body: { kind: "logo", dataUrl } }).then((d) => d.url)}
+            onClear={() => setLogoUrl("")}
+          />
+          <ImageDrop
+            label="Favicon"
+            url={faviconUrl}
+            onChange={(u) => setFaviconUrl(u)}
+            upload={(dataUrl) => api<{ url: string }>("/api/admin/branding/upload", { method: "POST", body: { kind: "favicon", dataUrl } }).then((d) => d.url)}
+            onClear={() => setFaviconUrl("")}
+            maxDim={256}
+          />
           <div className="flex justify-end gap-[9px]">
             <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? <span className="btn-spinner" /> : null}Save branding</button>
           </div>

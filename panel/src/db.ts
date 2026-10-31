@@ -92,6 +92,13 @@ try {
 try {
   db.exec("ALTER TABLE users ADD COLUMN discord_avatar TEXT");
 } catch { /* column exists */ }
+try {
+  db.exec("ALTER TABLE users ADD COLUMN avatar_url TEXT");
+} catch { /* column exists */ }
+
+// Uploads directory for branding images and avatars (files, not DB blobs).
+export const uploadsDir = path.join(process.cwd(), "uploads");
+fs.mkdirSync(uploadsDir, { recursive: true });
 
 export interface Egg {
   id: string;
@@ -299,6 +306,7 @@ export interface User {
   discord_id?: string | null;
   discord_username?: string | null;
   discord_avatar?: string | null;
+  avatar_url?: string | null;
   totp_secret?: string | null;
   totp_enabled?: number | null;
 }

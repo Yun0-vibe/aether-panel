@@ -83,6 +83,7 @@ export function publicUser(u: User) {
     role: u.role,
     displayName: u.display_name ?? u.email.split("@")[0],
     bio: u.bio ?? "",
+    avatarUrl: u.avatar_url ?? null,
     discordId: u.discord_id ?? null,
     discordUsername: u.discord_username ?? null,
     discordAvatar: u.discord_avatar ?? null,

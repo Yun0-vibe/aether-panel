@@ -96,7 +96,11 @@ export function Sidebar({ open = false, onNavigate }: { open?: boolean; onNaviga
           className="flex items-center gap-2.5 rounded-xl border border-border bg-white/4 px-3 py-2.5"
           style={{ isolation: "isolate" }}
         >
-          <span className="avatar !h-9 !w-9">{initials}</span>
+          {user?.avatarUrl ? (
+            <img src={user.avatarUrl} alt="" className="h-9 w-9 flex-none rounded-full object-cover ring-2 ring-brand/30" />
+          ) : (
+            <span className="avatar !h-9 !w-9">{initials}</span>
+          )}
           <div className="flex min-w-0 flex-1 flex-col items-start gap-[3px]">
             <span className="trunc max-w-full text-[12px] font-semibold text-white" title={user?.email}>
               {user?.email}
@@ -112,7 +116,10 @@ export function Sidebar({ open = false, onNavigate }: { open?: boolean; onNaviga
             <IconLogout size={17} />
           </button>
         </div>
-        <p className="mono mt-[6px] text-center text-[9px] tracking-wide text-text-3" title="Build id stamped at compile time — 'git pull' then rebuild to see it change">
+        <p className="mt-[7px] text-center text-[10px] font-semibold text-text-3">
+          © {new Date().getFullYear()} {branding.panelName}
+        </p>
+        <p className="mono mt-[4px] text-center text-[9px] tracking-wide text-text-3" title="Build id stamped at compile time — 'git pull' then rebuild to see it change">
           build {__BUILD_ID__} · aether core
         </p>
       </div>

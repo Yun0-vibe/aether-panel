@@ -5,6 +5,7 @@ import { useAuth, useLogoutAndRedirect } from "../auth/AuthContext";
 import { RoleBadge } from "./RoleBadge";
 import {
   AetherMark,
+  IconClose,
   IconGrid,
   IconLayers,
   IconLogout,
@@ -74,8 +75,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             onClick={() => setNavOpen(false)}
             aria-label="Close admin navigation"
           >
-            <IconUsers size={0} className="hidden" />
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            <IconClose size={18} />
           </button>
         </div>
 
@@ -119,7 +119,11 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
         <div className="border-t border-white/6 p-3">
           <div className="flex items-center gap-2.5 rounded-xl border border-border bg-white/4 px-3 py-2.5">
-            <span className="avatar !h-9 !w-9">{initials}</span>
+            {user?.avatarUrl ? (
+              <img src={user.avatarUrl} alt="" className="h-9 w-9 flex-none rounded-full object-cover ring-2 ring-brand/30" />
+            ) : (
+              <span className="avatar !h-9 !w-9">{initials}</span>
+            )}
             <div className="flex min-w-0 flex-1 flex-col items-start gap-[3px]">
               <span className="trunc max-w-full text-[12px] font-semibold text-white" title={user?.email}>
                 {user?.email}
@@ -135,6 +139,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
               <IconLogout size={17} />
             </button>
           </div>
+          <p className="mt-[7px] text-center text-[10px] font-semibold text-text-3">
+            © {new Date().getFullYear()} {branding.panelName}
+          </p>
+          <p className="mono mt-[4px] text-center text-[9px] tracking-wide text-text-3" title="Build id stamped at compile time">
+            build {__BUILD_ID__} · aether core
+          </p>
         </div>
       </aside>
 
@@ -150,14 +160,14 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <div className="flex min-h-screen flex-col lg:pl-[252px]">
         <header className="sticky top-0 z-30 flex h-[64px] items-center gap-5 border-b border-border bg-[rgba(7,5,15,0.72)] px-[30px] backdrop-blur-xl">
           <button
-            className="flex h-7 w-7 flex-none flex-col justify-center gap-[4px] rounded-lg border border-white/4 bg-white/4 px-2 transition-colors hover:border-fuchsia-400/60 hover:text-fuchsia-300 lg:hidden"
+            className="relative grid h-9 w-9 flex-none place-items-center rounded-lg border border-white/10 bg-white/6 transition-colors hover:border-fuchsia-400/60 hover:text-fuchsia-300 lg:hidden"
             onClick={() => setNavOpen((v) => !v)}
             aria-label="Toggle admin navigation"
             aria-expanded={navOpen}
           >
-            <span className="h-[1px] w-[22px] rounded-full bg-text-2" />
-            <span className="h-[1px] w-[22px] rounded-full bg-text-2" />
-            <span className="h-[1px] w-[22px] rounded-full bg-text-2" />
+            <span className={`absolute h-[1.5px] w-[18px] rounded-full bg-[rgba(216,206,240,0.92)] transition-all duration-200 ${navOpen ? "rotate-45" : "-translate-y-[5px]"}`} />
+            <span className={`absolute h-[1.5px] w-[18px] rounded-full bg-[rgba(216,206,240,0.92)] transition-all duration-200 ${navOpen ? "opacity-0" : "opacity-100"}`} />
+            <span className={`absolute h-[1.5px] w-[18px] rounded-full bg-[rgba(216,206,240,0.92)] transition-all duration-200 ${navOpen ? "-rotate-45" : "translate-y-[5px]"}`} />
           </button>
           <div className="flex min-w-0 flex-col leading-[1.2]">
             <span className="text-[14px] font-bold">{meta.title}</span>

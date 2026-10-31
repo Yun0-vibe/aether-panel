@@ -17,7 +17,7 @@ import {
   verifyPassword,
 } from "./auth.js";
 import { daemonFetch, specFromServer, statuses } from "./daemon.js";
-import { db, getBranding, setBranding, type Egg, type Nest, type Node, type Server, type User, CUSTOM_EGG_ID } from "./db.js";
+import { db, getBranding, setBranding, uploadsDir, type Egg, type Nest, type Node, type Server, type User, CUSTOM_EGG_ID } from "./db.js";
 import { registerFilesBackups } from "./files-backups.js";
 import { startScheduler } from "./scheduler.js";
 import { newTotpSecret, otpauthUri, verifyTotp } from "./totp.js";
@@ -619,6 +619,73 @@ app.patch("/api/account", async (req, reply) => {
   );
   const fresh = db.prepare("SELECT * FROM users WHERE id = ?").get(user.id) as User;
   return { user: publicUser(fresh) };
+});
+
+/* ------------------------------------------------------------ image uploads */
+
+/** Decode a data:image/* URL into bytes (png/jpeg/webp only — SVG is scriptable,
+ *  so it's rejected). Returns null when invalid or over the size cap. */
+function decodeImage(dataUrl: string, cap = 900 * 1024): { buf: Buffer; ext: string } | null {
+  const m = /^data:image\/(png|jpe?g|webp);base64,([A-Za-z0-9+/=]+)$/.exec((dataUrl || "").trim());
+  if (!m) return null;
+  const buf = Buffer.from(m[2], "base64");
+  if (buf.length === 0 || buf.length > cap) return null;
+  return { buf, ext: m[1] === "jpeg" ? "jpg" : m[1] };
+}
+
+// Public: the uploaded branding images, needed pre-login (login page shows logo).
+app.get("/api/branding/image/:kind", async (req, reply) => {
+  const kind = String((req.params as Record<string, string>).kind);
+  if (kind !== "logo" && kind !== "favicon") return reply.code(404).send();
+  reply.header("Cache-Control", "no-cache");
+  const file = path.join(uploadsDir, `branding-${kind}`);
+  if (!fs.existsSync(file)) return reply.code(404).send();
+  return reply.type(kind === "logo" ? "image/png" : "image/x-icon").send(fs.createReadStream(file));
+});
+
+// Drag-and-drop upload (logo / favicon). Admin-only; the file lands on disk and
+// the matching branding URL flips to the served version automatically.
+app.post("/api/admin/branding/upload", async (req, reply) => {
+  if (!requireAdmin(req as Authed, reply)) return;
+  const body = (req.body ?? {}) as { kind?: string; dataUrl?: string };
+  const kind = body.kind === "favicon" ? "favicon" : body.kind === "logo" ? "logo" : null;
+  if (!kind) return reply.status(400).send({ error: "kind must be logo or favicon" });
+  const img = decodeImage(String(body.dataUrl ?? ""));
+  if (!img) return reply.status(400).send({ error: "Image must be PNG, JPEG or WebP under 900 KB" });
+  fs.writeFileSync(path.join(uploadsDir, `branding-${kind}`), img.buf);
+  setBranding({ [kind === "logo" ? "logoUrl" : "faviconUrl"]: `/api/branding/image/${kind}?v=${Date.now()}` });
+  const branding = getBranding();
+  return { url: branding[kind === "logo" ? "logoUrl" : "faviconUrl"], branding };
+});
+
+// The signed-in user's own profile picture.
+app.post("/api/account/avatar", async (req, reply) => {
+  if (!requireAuth(req as Authed, reply)) return;
+  const user = (req as Authed).user;
+  const body = (req.body ?? {}) as { dataUrl?: string };
+  const img = decodeImage(String(body.dataUrl ?? ""), 500 * 1024);
+  if (!img) return reply.status(400).send({ error: "Image must be PNG, JPEG or WebP under 500 KB" });
+  fs.writeFileSync(path.join(uploadsDir, `avatar-${user.id}`), img.buf);
+  const url = `/api/account/avatar?v=${Date.now()}`;
+  db.prepare("UPDATE users SET avatar_url = ? WHERE id = ?").run(url, user.id);
+  return { avatarUrl: url };
+});
+
+app.get("/api/account/avatar", async (req, reply) => {
+  if (!requireAuth(req as Authed, reply)) return;
+  const user = (req as Authed).user;
+  reply.header("Cache-Control", "no-cache");
+  const file = path.join(uploadsDir, `avatar-${user.id}`);
+  if (!fs.existsSync(file)) return reply.code(404).send();
+  return reply.type("image/jpeg").send(fs.createReadStream(file));
+});
+
+app.delete("/api/account/avatar", async (req, reply) => {
+  if (!requireAuth(req as Authed, reply)) return;
+  const user = (req as Authed).user;
+  fs.rmSync(path.join(uploadsDir, `avatar-${user.id}`), { force: true });
+  db.prepare("UPDATE users SET avatar_url = NULL WHERE id = ?").run(user.id);
+  return { ok: true };
 });
 
 // Change the signed-in user's password (requires the current password).

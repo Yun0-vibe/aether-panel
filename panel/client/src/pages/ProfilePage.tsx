@@ -6,6 +6,7 @@ import {
 } from "../components/Icons";
 import { RoleBadge } from "../components/RoleBadge";
 import { useToast } from "../components/Toasts";
+import { ImageDrop } from "../components/ImageDrop";
 
 const FIELD =
   "h-[40px] w-full rounded-lg border border-border bg-[rgba(0,0,0,0.26)] px-[13px] text-[13.5px] text-white outline-none transition-all duration-150 focus:border-brand/60 focus:bg-[rgba(34,211,238,0.05)]";
@@ -81,9 +82,13 @@ export function ProfilePage() {
       {/* identity header */}
       <section className="card relative overflow-hidden flex flex-wrap items-center gap-[20px] p-[24px]">
         <div className="relative">
-          <span className="avatar w-[72px] h-[72px] text-[22px] rounded-[18px] brand-grad text-[#04121c] shadow-[0_8px_28px_-8px_rgba(34,211,238,0.5)]">
-            {initials}
-          </span>
+          {user?.avatarUrl ? (
+            <img src={user.avatarUrl} alt="Profile picture" className="h-[72px] w-[72px] rounded-[18px] object-cover ring-2 ring-brand/40" />
+          ) : (
+            <span className="avatar block h-[72px] w-[72px] text-[22px] rounded-[18px] brand-grad text-[#04121c] shadow-[0_8px_28px_-8px_rgba(34,211,238,0.5)]">
+              {initials}
+            </span>
+          )}
           <span className="absolute bottom-[6px] right-[6px] w-[14px] h-[14px] rounded-full bg-green-500 border-[2.5px] border-[#0d1424] shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
         </div>
         <div className="min-w-0 flex-1">
@@ -213,6 +218,24 @@ function ProfileTabMain({ flash }: { flash: (m: string) => void }) {
           </div>
         </div>
         <form onSubmit={saveProfile} className="flex flex-col gap-[15px]">
+          <ImageDrop
+            label="Profile picture"
+            url={user?.avatarUrl ?? ""}
+            onChange={() => undefined}
+            upload={(dataUrl) => api<{ avatarUrl: string }>("/api/account/avatar", { method: "POST", body: { dataUrl } }).then((d) => {
+              if (user) setUser({ ...user, avatarUrl: d.avatarUrl });
+              return d.avatarUrl;
+            })}
+            onClear={async () => {
+              try {
+                await api("/api/account/avatar", { method: "DELETE" });
+                if (user) setUser({ ...user, avatarUrl: null });
+                toast.push("Profile picture removed", "success");
+              } catch { toast.pushError("Could not remove picture"); }
+            }}
+            maxDim={256}
+            shape="circle"
+          />
           <label className="flex flex-col gap-[7px]">
             <span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Display name</span>
             <input className={FIELD} value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={48} placeholder="e.g. Ninja" />

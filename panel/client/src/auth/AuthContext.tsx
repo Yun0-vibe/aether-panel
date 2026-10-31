@@ -7,6 +7,7 @@ export interface User {
   role: string;
   displayName?: string;
   bio?: string;
+  avatarUrl?: string | null;
   discordId?: string | null;
   discordUsername?: string | null;
   discordAvatar?: string | null;
