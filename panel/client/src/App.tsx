@@ -91,7 +91,14 @@ function Shell({ children }: { children: React.ReactNode }) {
         <span className="app-grid-lines" />
       </div>
       <Sidebar open={navOpen} onNavigate={() => setNavOpen(false)} />
-      <button className="nav-scrim" onClick={() => setNavOpen(false)} aria-label="Close navigation" tabIndex={navOpen ? 0 : -1} />
+      <button
+        className={`fixed inset-0 z-30 border-none bg-[#03060e]/60 backdrop-blur-[3px] lg:hidden ${
+          navOpen ? "block animate-[fade-in_200ms_var(--ease)]" : "hidden"
+        }`}
+        onClick={() => setNavOpen(false)}
+        aria-label="Close navigation"
+        tabIndex={navOpen ? 0 : -1}
+      />
       <div className="flex-1 min-w-[0] flex flex-col main-margin">
         <TopBar onToggleNav={() => setNavOpen((v) => !v)} navOpen={navOpen} />
         <main className="main-content">{children}</main>

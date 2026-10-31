@@ -1,83 +1,115 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import { useAuth, useLogoutAndRedirect } from "../auth/AuthContext";
 import { RoleBadge } from "./RoleBadge";
 import {
   AetherMark,
   IconClose,
   IconGrid,
-  IconLayers,
   IconLogout,
   IconServer,
   IconShield,
+  IconUsers,
 } from "./Icons";
 
 export function Sidebar({ open = false, onNavigate }: { open?: boolean; onNavigate?: () => void }) {
   const { user } = useAuth();
   const logout = useLogoutAndRedirect();
   const initials = (user?.email ?? "?").slice(0, 2).toUpperCase();
-  const location = useLocation();
 
-  const link = ({ isActive }: { isActive: boolean }) => (isActive ? "side-link active" : "side-link");
+  const linkCls = ({ isActive }: { isActive: boolean }) =>
+    `group flex items-center gap-3 rounded-xl border px-3 py-2.5 text-[13px] font-semibold transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+      isActive
+        ? "border-brand/35 bg-brand/12 text-white shadow-[0_8px_20px_-12px_rgba(34,211,238,0.45)]"
+        : "border-transparent text-text-2 hover:border-white/10 hover:bg-white/5 hover:text-white"
+    }`;
 
   return (
-    <aside className={`fixed inset-y-0 left-0 z-60 flex flex-col ${open ? "" : "-translate-x-full"} transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] w-[252px] shadow-[30px_0_60px_-30px_rgba(0,0,0,0.9)] bg-gradient-to-b from-[rgba(8,12,22,0.92)] to-[rgba(8,12,22,0.78)] backdrop-blur-[26px] -webkit-backdrop-blur-[26px] border-r border-border`}
->
-      <div className="flex items-center gap-3 px-3 py-1.5 overflow-hidden relative after:absolute after:-right-px after:top-0 after:h-[240px] after:w-[1px] after:bg-gradient-to-b after:from-transparent after:via-brand/55 after:to-transparent">
-        <AetherMark size={38} className="filter-drop-shadow-[0_0_14px_rgba(34,211,238,0.45)] animate-[logo-breathe_5s_ease-in-out_infinite] z-10" />
-        <div className="flex flex-col leading-[1.1] min-w-0 overflow-hidden z-10">
-          <span className="text-[15px] font-black tracking-wider brand-grad grad-text">AETHER</span>
-          <span className="mt-[3px] text-[8px] font-bold tracking-widest text-text-3">CONTROL PANEL</span>
+    <aside
+      className={`fixed inset-y-0 left-0 z-40 flex w-[252px] flex-col border-r border-border bg-gradient-to-b from-[rgba(8,12,22,0.94)] to-[rgba(8,12,22,0.80)] backdrop-blur-xl transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        open ? "translate-x-0" : "-translate-x-full"
+      } lg:translate-x-0`}
+    >
+      {/* Brand */}
+      <div className="flex items-center gap-3 px-4 py-4">
+        <AetherMark size={36} className="flex-none drop-shadow-[0_0_14px_rgba(34,211,238,0.45)]" />
+        <div className="flex min-w-0 flex-col leading-[1.1]">
+          <span className="bg-gradient-to-r from-[#22d3ee] via-[#3b82f6] to-[#a855f7] bg-clip-text text-[15px] font-black tracking-wider text-transparent">
+            AETHER
+          </span>
+          <span className="mt-[3px] text-[8px] font-bold tracking-[0.24em] text-text-3">
+            CONTROL PANEL
+          </span>
         </div>
-        <button className="ml-auto flex-none w-7 h-7 grid place-items-center rounded-md border border-transparent text-text-3 hover:text-white hover:bg-white/5 hover:border-white/10 transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]" onClick={onNavigate} aria-label="Close navigation">
+        <button
+          className="ml-auto flex h-8 w-8 flex-none place-items-center rounded-lg text-text-3 transition-colors hover:bg-white/5 hover:text-white lg:hidden"
+          onClick={onNavigate}
+          aria-label="Close navigation"
+        >
           <IconClose size={18} />
         </button>
       </div>
 
-      <nav className="flex-1 flex flex-col gap-1 overflow-y-auto px-0 py-0" aria-label="Primary">
-        <span className="px-3 pt-[4px] pb-[7px] text-[9.5px] font-black tracking-widest uppercase text-text-3">Workspace</span>
-        <NavLink to="/" end className={link} onClick={onNavigate}>
-          <div className="flex items-center gap-3 px-3 py-[9.5px] rounded-lg border border-transparent text-text-2 text-sm font-semibold transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] relative group">
-            <IconGrid size={18} className="flex-none opacity-75 group-hover:opacity-100 group-hover:text-brand" />
-            <span>Dashboard</span>
-          </div>
+      {/* Nav */}
+      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 pb-4 pt-2" aria-label="Primary">
+        <span className="mb-1 px-2 text-[9.5px] font-black uppercase tracking-[0.16em] text-text-3">
+          Overview
+        </span>
+        <NavLink to="/" end className={linkCls} onClick={onNavigate}>
+          <IconGrid size={18} className="flex-none opacity-80" />
+          <span>Dashboard</span>
         </NavLink>
-        <NavLink to="/servers" end className={link} onClick={onNavigate}>
-          <div className="flex items-center gap-3 px-3 py-[9.5px] rounded-lg border border-transparent text-text-2 text-sm font-semibold transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] relative group">
-            <IconServer size={18} className="flex-none opacity-75 group-hover:opacity-100 group-hover:text-brand" />
-            <span>Servers</span>
-          </div>
+        <NavLink to="/servers" className={linkCls} onClick={onNavigate}>
+          <IconServer size={18} className="flex-none opacity-80" />
+          <span>Servers</span>
+        </NavLink>
+
+        <span className="mb-1 mt-4 px-2 text-[9.5px] font-black uppercase tracking-[0.16em] text-text-3">
+          Account
+        </span>
+        <NavLink to="/profile" className={linkCls} onClick={onNavigate}>
+          <IconUsers size={18} className="flex-none opacity-80" />
+          <span>Profile</span>
         </NavLink>
 
         {user?.role === "admin" && (
           <>
-            <span className="px-3 pt-1 pb-[7px] text-[9.5px] font-black tracking-widest uppercase text-text-3">Administration</span>
-            <NavLink to="/admin" className={link} onClick={onNavigate}>
-              <div className="flex items-center gap-3 px-3 py-[9.5px] rounded-lg border border-transparent text-text-2 text-sm font-semibold transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] relative group">
-                <IconShield size={18} className="flex-none opacity-75 group-hover:opacity-100 group-hover:text-brand" />
-                <span>Admin console</span>
-              </div>
+            <span className="mb-1 mt-4 px-2 text-[9.5px] font-black uppercase tracking-[0.16em] text-text-3">
+              Administration
+            </span>
+            <NavLink to="/admin" className={linkCls} onClick={onNavigate}>
+              <IconShield size={18} className="flex-none opacity-80" />
+              <span>Admin portal</span>
             </NavLink>
-            <NavLink to="/admin?tab=nodes" className={link} onClick={onNavigate}>
-              <div className="flex items-center gap-3 px-3 py-[9.5px] rounded-lg border border-transparent text-text-2 text-sm font-semibold transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] relative group">
-                <IconLayers size={18} className="flex-none opacity-75 group-hover:opacity-100 group-hover:text-brand" />
-                <span>Nodes</span>
-              </div>
+            <NavLink to="/admin?tab=nodes" className={linkCls} onClick={onNavigate}>
+              <IconUsers size={18} className="flex-none opacity-80" />
+              <span>Nodes &amp; users</span>
             </NavLink>
           </>
         )}
       </nav>
 
-      <div className="flex items-center gap-2 px-3 py-0.5 border-t border-border mt-3 relative z-10">
-        <div className="flex-1 min-w-0 flex items-center gap-2.5">
-          <span className="avatar">{initials}</span>
-          <div className="min-w-0 flex flex-col gap-1 items-start">
-            <span className="trunc text-[12px] font-semibold text-text-2" title={user?.email}>{user?.email}</span>
-            <RoleBadge role={user?.role ?? "user"} />
+      {/* User footer card */}
+      <div className="border-t border-border p-3">
+        <div
+          className="flex items-center gap-2.5 rounded-xl border border-border bg-white/4 px-3 py-2.5"
+          style={{ isolation: "isolate" }}
+        >
+          <span className="avatar !h-9 !w-9">{initials}</span>
+          <div className="flex min-w-0 flex-1 flex-col items-start gap-[3px]">
+            <span className="trunc max-w-full text-[12px] font-semibold text-white" title={user?.email}>
+              {user?.email}
+            </span>
+            <RoleBadge role={(user?.role ?? "user").toLowerCase()} />
           </div>
+          <button
+            className="flex h-8 w-8 flex-none place-items-center rounded-lg text-text-3 transition-colors hover:bg-[rgba(248,113,113,0.12)] hover:text-[#fca5a5]"
+            onClick={() => void logout()}
+            title="Log out"
+            aria-label="Log out"
+          >
+            <IconLogout size={17} />
+          </button>
         </div>
-        <button className="flex-none w-7 h-7 grid place-items-center rounded-lg border border-transparent text-text-3 hover:text-red-500 hover:bg-red/10 hover:border-red/30 transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]" onClick={() => void logout()} title="Log out" aria-label="Log out">
-          <IconLogout size={18} />
-        </button>
       </div>
     </aside>
   );

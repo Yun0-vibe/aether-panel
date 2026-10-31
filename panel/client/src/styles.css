@@ -116,15 +116,16 @@ ul {
   border-radius: var(--r-lg);
 }
 
-.grad-text {
+.brand-grad {
   background: var(--brand-grad);
+}
+
+.grad-text {
+  background-image: var(--brand-grad);
+  background-color: transparent;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-}
-
-.brand-grad {
-  background: var(--brand-grad);
 }
 
 .glow {

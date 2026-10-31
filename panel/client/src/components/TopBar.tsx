@@ -27,7 +27,7 @@ export function TopBar({ onToggleNav, navOpen }: { onToggleNav: () => void; navO
 
   return (
     <header className="sticky top-0 z-50 h-[64px] flex items-center gap-5 px-[30px] border-b border-border bg-[rgba(7,10,19,0.72)] backdrop-blur-[20px] -webkit-backdrop-blur-[20px]">
-      <button className="hidden md:flex flex-col justify-center gap-[4px] w-7 h-7 px-2 rounded-lg border border-white/4 bg-white/4 flex-none hover:border-brand/60 hover:text-brand transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]" onClick={onToggleNav} aria-label="Toggle navigation" aria-expanded={navOpen}>
+      <button className="flex flex-col justify-center gap-[4px] w-7 h-7 px-2 rounded-lg border border-white/4 bg-white/4 flex-none hover:border-brand/60 hover:text-brand transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] lg:hidden" onClick={onToggleNav} aria-label="Toggle navigation" aria-expanded={navOpen}>
         <span className="w-[22px] h-[1px] rounded-full bg-text-2 transition-all duration-150" />
         <span className="w-[22px] h-[1px] rounded-full bg-text-2 transition-all duration-150" />
         <span className="w-[22px] h-[1px] rounded-full bg-text-2 transition-all duration-150" />
