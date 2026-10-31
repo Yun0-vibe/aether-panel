@@ -465,12 +465,12 @@ function SecurityTabMain({ flash }: { flash: (m: string) => void }) {
                 <TotpCard user={user} setUser={setUser} reauthToken={null} onVerified={onVerified} />
               </div>
             )}
-            <p className="text-[11px] text-text-3">Setting either one up also unlocks security for 10 minutes.</p>
+            <p className="text-[11px] text-text-3">Setting up either method also unlocks your security settings for 10 minutes.</p>
           </>
         )}
 
         <FormError msg={unlockErr} />
-        <p className="text-[11px] text-text-3">Verification stays valid for 10 minutes.</p>
+        <p className="text-[11px] text-text-3">Verified access lasts 10 minutes — after that, verify again.</p>
       </section>
     );
   }
@@ -554,7 +554,7 @@ function PasswordCard({ reauthToken, onReauthRejected, flash }: { reauthToken: s
 
 function TotpCard({ user, setUser, reauthToken, onVerified }: { user: User | null; setUser: (u: User | null) => void; reauthToken: string | null; onVerified?: (token: string, expiresIn: number) => void }) {
   const toast = useToast();
-  const [modal, setModal] = useState<{ qr: string; secret: string } | null>(null);
+  const [setup, setSetup] = useState<{ qr: string; secret: string } | null>(null);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -565,7 +565,8 @@ function TotpCard({ user, setUser, reauthToken, onVerified }: { user: User | nul
     setErr(null); setBusy(true);
     try {
       const d = await api<{ qr: string; secret: string }>("/api/account/totp/setup", { method: "POST", headers: reauthToken ? { "X-Ae-Reauth": reauthToken } : undefined });
-      setModal({ qr: d.qr, secret: d.secret });
+      setSetup({ qr: d.qr, secret: d.secret });
+      setErr(null);
     } catch (e) { setErr(e instanceof ApiError ? e.message : "Failed to start 2FA setup"); }
     finally { setBusy(false); }
   }
@@ -576,7 +577,7 @@ function TotpCard({ user, setUser, reauthToken, onVerified }: { user: User | nul
     try {
       const d = await api<{ user: User; reauthToken?: string; expiresIn?: number }>("/api/account/totp/enable", { method: "POST", body: { code }, noRedirect: true });
       setUser(d.user);
-      setModal(null);
+      setSetup(null);
       setCode("");
       toast.push("Two-factor authentication enabled", "success");
       if (d.reauthToken) onVerified?.(d.reauthToken, d.expiresIn ?? 600_000);
@@ -626,53 +627,59 @@ function TotpCard({ user, setUser, reauthToken, onVerified }: { user: User | nul
           )
         ) : (
           <div className="flex flex-col gap-[10px]">
-            <p className="text-[12.5px] text-text-2">Add a second step at sign-in — even if your password leaks, your account stays safe.</p>
-            <div className="flex justify-end">
-              <button className="btn btn-primary btn-sm" onClick={() => void start2fa()} disabled={busy}>
-                {busy ? <span className="btn-spinner" /> : null} Enable 2FA
-              </button>
-            </div>
+            {!setup && (
+              <>
+                <p className="text-[12.5px] text-text-2">Add a second step at sign-in — even if your password leaks, your account stays safe.</p>
+                <div className="flex justify-end">
+                  <button className="btn btn-primary btn-sm" onClick={() => void start2fa()} disabled={busy}>
+                    {busy ? <span className="btn-spinner" /> : null} Enable 2FA
+                  </button>
+                </div>
+              </>
+            )}
+            {setup && (
+              <form onSubmit={confirm2fa} className="flex flex-col gap-[14px]">
+                <div className="flex flex-wrap items-center gap-[16px] rounded-[14px] border border-border bg-[rgba(0,0,0,0.22)] p-[14px]">
+                  <img src={setup.qr} alt="2FA QR code" className="h-[150px] w-[150px] flex-none rounded-xl border border-border bg-[#0d1424] p-[8px]" />
+                  <div className="min-w-[190px] flex-1">
+                    <p className="text-[12.5px] leading-[1.6] text-text-2">Scan the QR with your authenticator app. No camera? Type this secret manually:</p>
+                    <button
+                      type="button"
+                      onClick={() => { navigator.clipboard?.writeText(setup.secret).then(() => toast.push("Secret copied", "success")); }}
+                      className="mono mt-[8px] block w-full break-all rounded-lg border border-border bg-[rgba(0,0,0,0.3)] px-[10px] py-[7px] text-left text-[12.5px] text-white transition-colors hover:border-brand/60"
+                      title="Click to copy the secret"
+                    >
+                      {setup.secret}
+                    </button>
+                  </div>
+                </div>
+                <label className="flex flex-col gap-[7px]">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Enter the 6-digit code to confirm</span>
+                  <input
+                    className={FIELD + " text-center tracking-[0.35em]"}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    required
+                    placeholder="123456"
+                  />
+                </label>
+                <p className="text-[11px] text-text-3">After you confirm, 2FA is required at every sign-in.</p>
+                <FormError msg={err} />
+                <div className="flex justify-end gap-[9px]">
+                  <button type="button" className="btn btn-ghost" onClick={() => { setSetup(null); setCode(""); }}>Cancel</button>
+                  <button type="submit" className="btn btn-primary" disabled={busy}>
+                    {busy ? <span className="btn-spinner" /> : null} Confirm & enable
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         )}
         <div className="mt-[10px]"><FormError msg={err} /></div>
       </section>
-
-      {modal && (
-        <Modal title="Set up your authenticator app" onClose={() => { setModal(null); setCode(""); }}>
-          <div className="flex flex-col gap-[14px]">
-            <div className="flex flex-wrap items-center gap-[16px]">
-              <img src={modal.qr} alt="2FA QR code" className="h-[150px] w-[150px] flex-none rounded-xl border border-border bg-[#0d1424] p-[8px]" />
-              <div className="min-w-[180px] flex-1">
-                <p className="text-[12.5px] leading-[1.6] text-text-2">Scan the QR with your authenticator app. No camera? Type this secret manually:</p>
-                <p className="mono mt-[8px] break-all rounded-lg border border-border bg-[rgba(0,0,0,0.3)] px-[10px] py-[7px] text-[12.5px] text-white">{modal.secret}</p>
-              </div>
-            </div>
-            <form onSubmit={confirm2fa} className="flex flex-col gap-[10px]">
-              <label className="flex flex-col gap-[7px]">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Enter the 6-digit code to confirm</span>
-                <input
-                  className={FIELD + " text-center tracking-[0.35em]"}
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={6}
-                  required
-                  autoFocus
-                  placeholder="123456"
-                />
-              </label>
-              <FormError msg={err} />
-              <div className="flex justify-end gap-[9px]">
-                <button type="button" className="btn btn-ghost" onClick={() => { setModal(null); setCode(""); }}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={busy}>
-                  {busy ? <span className="btn-spinner" /> : null} Enable 2FA
-                </button>
-              </div>
-            </form>
-          </div>
-        </Modal>
-      )}
     </>
   );
 }
