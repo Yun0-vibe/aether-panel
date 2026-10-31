@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth, api } from "../auth/AuthContext";
 import type { ServerSummary } from "../auth/AuthContext";
+import { useBranding } from "../brand/BrandContext";
 import {
   IconBell, IconSearch, AetherMark, IconGrid, IconServer,
   IconUsers, IconLayers, IconShield, IconCheck, IconAlert,
@@ -73,6 +74,8 @@ function Palette({
           { id: "a-ov", label: "Admin overview", sub: "Admin portal", to: "/admin", icon: <IconShield size={16} />, keywords: "admin portal dashboard" },
           { id: "a-us", label: "Admin users", sub: "Admin portal", to: "/admin/users", icon: <IconUsers size={16} />, keywords: "users accounts roles" },
           { id: "a-no", label: "Admin nodes", sub: "Admin portal", to: "/admin/nodes", icon: <IconLayers size={16} />, keywords: "nodes daemons machines" },
+          { id: "a-eg", label: "Admin eggs & nests", sub: "Admin portal", to: "/admin/eggs", icon: <IconLayers size={16} />, keywords: "eggs nests presets games" },
+          { id: "a-br", label: "Admin branding", sub: "Admin portal", to: "/admin/branding", icon: <IconShield size={16} />, keywords: "brand name logo favicon title tagline" },
           { id: "a-as", label: "Admin servers", sub: "Admin portal", to: "/admin/servers", icon: <IconServer size={16} />, keywords: "servers provision" },
         ]
       : [];
@@ -261,6 +264,7 @@ export function TopBar({ onToggleNav, navOpen }: { onToggleNav: () => void; navO
   const location = useLocation();
   const [now, setNow] = useState(() => new Date());
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const { branding } = useBranding();
 
   useEffect(() => {
     const t = window.setInterval(() => setNow(new Date()), 1000);
@@ -285,15 +289,19 @@ export function TopBar({ onToggleNav, navOpen }: { onToggleNav: () => void; navO
   };
 
   return (
-    <header className="sticky top-0 z-50 h-[64px] flex items-center gap-5 px-[30px] border-b border-border bg-[rgba(7,10,19,0.72)] backdrop-blur-[20px] -webkit-backdrop-blur-[20px]">
+    <header className="sticky top-0 z-50 h-[64px] flex items-center gap-3 lg:gap-5 px-3.5 lg:px-[30px] border-b border-border bg-[rgba(7,10,19,0.72)] backdrop-blur-[20px] -webkit-backdrop-blur-[20px]">
       <button className="flex flex-col justify-center gap-[4px] w-7 h-7 px-2 rounded-lg border border-white/4 bg-white/4 flex-none hover:border-brand/60 hover:text-brand transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] lg:hidden" onClick={onToggleNav} aria-label="Toggle navigation" aria-expanded={navOpen}>
         <span className="w-[22px] h-[1px] rounded-full bg-text-2 transition-all duration-150" />
         <span className="w-[22px] h-[1px] rounded-full bg-text-2 transition-all duration-150" />
         <span className="w-[22px] h-[1px] rounded-full bg-text-2 transition-all duration-150" />
       </button>
-      <div className="flex items-center gap-2.5 min-w-0">
-        <AetherMark size={30} className="filter-drop-shadow-[0_0_10px_rgba(34,211,238,0.4)] z-10" />
-        <div className="flex flex-col leading-[1.2] min-w-0">
+      <div className="flex items-center gap-2 min-w-0">
+        {branding.logoUrl ? (
+          <img src={branding.logoUrl} alt="" className="h-[30px] w-[30px] flex-none rounded-[8px] object-contain z-10" />
+        ) : (
+          <AetherMark size={30} className="filter-drop-shadow-[0_0_10px_rgba(34,211,238,0.4)] z-10" />
+        )}
+        <div className="flex flex-col leading-[1.2] hidden sm:flex min-w-0">
           <span className="text-[14px] font-bold">{meta.title}</span>
           <span className="mt-[1px] text-[11px] trunc text-text-3">{meta.sub}</span>
         </div>
@@ -301,13 +309,20 @@ export function TopBar({ onToggleNav, navOpen }: { onToggleNav: () => void; navO
 
       {/* Search — a real command palette launcher */}
       <button
-        className="group relative flex-1 max-w-[420px] flex items-center h-9 pl-10 pr-[54px] rounded-lg bg-white/5 border border-border text-left outline-none hover:border-brand/50 hover:bg-white/7 transition-all duration-150"
+        className="group relative hidden md:flex flex-1 max-w-[420px] items-center h-9 pl-10 pr-[54px] rounded-lg bg-white/5 border border-border text-left outline-none hover:border-brand/50 hover:bg-white/7 transition-all duration-150"
         onClick={() => setPaletteOpen(true)}
         aria-label="Open command palette"
       >
         <IconSearch size={16} className="absolute left-[11px] text-text-3 pointer-events-none" />
         <span className="text-[13px] text-text-3 group-hover:text-text-2 transition-colors">Search servers, nodes, users…</span>
         <kbd className="absolute right-[10px] py-[2px] px-[6px] rounded-[5px] text-[10px] text-text-3 bg-white/5 border border-border pointer-events-none font-mono">⌘K</kbd>
+      </button>
+      <button
+        className="md:hidden flex-none w-8 h-8 grid place-items-center rounded-[9px] border border-border bg-white/4 text-text-3 hover:text-brand hover:border-brand/50 transition-all duration-150"
+        onClick={() => setPaletteOpen(true)}
+        aria-label="Search"
+      >
+        <IconSearch size={15} />
       </button>
 
       <div className="flex items-center gap-[10px] ml-auto">

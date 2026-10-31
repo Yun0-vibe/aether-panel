@@ -12,7 +12,8 @@ import { Dashboard } from "./pages/Dashboard";
 import { ServersPage } from "./pages/Servers";
 import { ServerDetail } from "./pages/ServerDetail";
 import { ServerWizard } from "./pages/ServerWizard";
-import { AdminOverview, EggsTab, NodesTab, ServersTab, UsersTab } from "./pages/Admin";
+import { AdminOverview, BrandingTab, EggsTab, NodesTab, ServersTab, UsersTab } from "./pages/Admin";
+import { BrandProvider } from "./brand/BrandContext";
 
 export default function App() {
   const [navOpen, setNavOpen] = useState(false);
@@ -20,7 +21,8 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <ToastProvider>
+        <BrandProvider>
+          <ToastProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
@@ -105,6 +107,16 @@ export default function App() {
               }
             />
             <Route
+              path="/admin/branding"
+              element={
+                <RequireAdmin>
+                  <AdminShell>
+                    <BrandingTab />
+                  </AdminShell>
+                </RequireAdmin>
+              }
+            />
+            <Route
               path="/admin/servers/new"
               element={
                 <RequireAdmin>
@@ -126,7 +138,8 @@ export default function App() {
             />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </ToastProvider>
+          </ToastProvider>
+        </BrandProvider>
       </AuthProvider>
     </BrowserRouter>
   );

@@ -3,8 +3,9 @@ import { Link } from "react-router-dom";
 import { api, ApiError, useAuth } from "../auth/AuthContext";
 import type { ServerSummary, User } from "../auth/AuthContext";
 import { useToast } from "../components/Toasts";
-import { IconClose, IconPlus, IconUsers, IconLayers, IconServer, IconActivity, IconShield, IconRocket, IconArchive } from "../components/Icons";
+import { AetherMark, IconClose, IconPlus, IconUsers, IconLayers, IconServer, IconActivity, IconShield, IconRocket, IconArchive, IconSparkle } from "../components/Icons";
 import { RoleBadge } from "../components/RoleBadge";
+import { useBranding } from "../brand/BrandContext";
 
 type AdminUser = User;
 interface Node { id: string; name: string; host: string; daemonPort: number; token?: string; }
@@ -48,7 +49,7 @@ export function AdminOverview() {
   const online = (servers ?? []).filter((s) => ["running", "started", "online"].includes((s.status ?? "").toLowerCase())).length;
 
   return (
-    <div className="flex flex-col gap-[22px]">
+    <div className="flex flex-col gap-[22px] rise">
       <PageHead title="Admin overview" sub="Everything happening across the panel, at a glance." />
 
       <section className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-[14px]">
@@ -60,6 +61,7 @@ export function AdminOverview() {
 
       <section className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-[14px]">
         <QuickCard to="/admin/servers/new" icon={<IconRocket size={20} className="flex-none" />} title="Create server" sub="Wizard with game presets" />
+        <QuickCard to="/admin/branding" icon={<IconSparkle size={20} className="flex-none" />} title="Branding" sub="Name, logo and favicon" />
         <QuickCard to="/admin/eggs" icon={<IconArchive size={20} className="flex-none" />} title="Eggs & nests" sub="Game presets for the wizard" />
         <QuickCard to="/admin/users" icon={<IconUsers size={20} className="flex-none" />} title="Manage users" sub="Create, promote or remove accounts" />
         <QuickCard to="/admin/nodes" icon={<IconLayers size={20} className="flex-none" />} title="Manage nodes" sub="Register daemon machines" />
@@ -313,6 +315,88 @@ export function NodesTab() {
       </div>
       {adding && <Modal title="New node" onClose={() => setAdding(false)}><NodeForm onSubmit={async (body) => { await api("/api/admin/nodes", { method: "POST", body }); toast.push("Node created", "success"); }} done={() => { setAdding(false); void load(); }} /></Modal>}
       {editing && <Modal title={`Edit ${editing.name}`} onClose={() => setEditing(null)}><NodeForm initial={editing} onSubmit={async (body) => { await api(`/api/admin/nodes/${encodeURIComponent(editing.id)}`, { method: "PATCH", body }); toast.push("Node updated", "success"); }} done={() => { setEditing(null); void load(); }} /></Modal>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- branding
+
+export function BrandingTab() {
+  const { branding, save } = useBranding();
+  const toast = useToast();
+  const [panelName, setPanelName] = useState(branding.panelName);
+  const [tagline, setTagline] = useState(branding.tagline);
+  const [logoUrl, setLogoUrl] = useState(branding.logoUrl);
+  const [faviconUrl, setFaviconUrl] = useState(branding.faviconUrl);
+  const [busy, setBusy] = useState(false);
+
+  // Sync the form if branding is reloaded from the server.
+  useEffect(() => {
+    setPanelName(branding.panelName);
+    setTagline(branding.tagline);
+    setLogoUrl(branding.logoUrl);
+    setFaviconUrl(branding.faviconUrl);
+  }, [branding]);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await save({ panelName, tagline, logoUrl, faviconUrl });
+      toast.push("Branding saved — applied across the panel", "success");
+    } catch (err) {
+      toast.pushError(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-[18px]">
+      <PageHead title="Branding" sub="Panel name, logo and favicon — shown in the sidebar, login page and browser tab." />
+      <div className="grid grid-cols-1 gap-[18px] lg:grid-cols-[1fr_320px]">
+        <form onSubmit={submit} className="card flex flex-col gap-[14px]">
+          <label className="flex flex-col gap-[7px]">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Panel name</span>
+            <input className={FIELD} value={panelName} onChange={(e) => setPanelName(e.target.value)} required placeholder="e.g. Nimbus Host" />
+          </label>
+          <label className="flex flex-col gap-[7px]">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Tagline</span>
+            <input className={FIELD} value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder="e.g. Deploy at the speed of thought" />
+          </label>
+          <label className="flex flex-col gap-[7px]">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Logo URL</span>
+            <input className={FIELD + " font-mono !text-[12.5px]"} value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://…/logo.png (blank = built-in mark)" />
+          </label>
+          <label className="flex flex-col gap-[7px]">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Favicon URL</span>
+            <input className={FIELD + " font-mono !text-[12.5px]"} value={faviconUrl} onChange={(e) => setFaviconUrl(e.target.value)} placeholder="https://…/favicon.png (blank = built-in)" />
+          </label>
+          <div className="flex justify-end gap-[9px]">
+            <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? <span className="btn-spinner" /> : null}Save branding</button>
+          </div>
+        </form>
+
+        <aside className="card flex flex-col gap-[14px] self-start">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Preview</span>
+          <div className="flex items-center gap-3 rounded-[14px] border border-border bg-[rgba(8,12,22,0.9)] p-3">
+            {logoUrl ? (
+              <img src={logoUrl} alt="" className="h-9 w-9 flex-none rounded-[10px] object-contain" onError={(e) => { (e.target as HTMLImageElement).style.opacity = "0.2"; }} />
+            ) : (
+              <AetherMark size={36} className="flex-none" />
+            )}
+            <div className="flex min-w-0 flex-col leading-[1.1]">
+              <span className="trunc text-[14px] font-black tracking-wide text-white">{panelName || "—"} </span>
+              <span className="mt-[3px] trunc text-[9px] font-bold tracking-[0.24em] text-text-3">{tagline || "NO TAGLINE"}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-[8px] rounded-[10px] border border-border bg-white/3 px-3 py-2">
+            {faviconUrl ? <img src={faviconUrl} alt="" className="h-[14px] w-[14px]" /> : <AetherMark size={14} className="flex-none" />}
+            <span className="trunc text-[11.5px] text-text-2">{panelName} — {tagline}</span>
+          </div>
+          <p className="text-[11px] leading-[1.5] text-text-3">Name and tagline appear in the login page, sidebars and browser tab; the favicon swaps the tab icon instantly after save.</p>
+        </aside>
+      </div>
     </div>
   );
 }

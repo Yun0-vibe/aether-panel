@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError, useAuth } from "../auth/AuthContext";
 import type { ServerSummary } from "../auth/AuthContext";
+import { useBranding } from "../brand/BrandContext";
 import { ServerCard, StatusBadge } from "../components/ServerCard";
 import {
   IconActivity,
@@ -49,15 +50,17 @@ export function Dashboard() {
   }
 
   const firstName = (user?.email ?? "").split("@")[0];
+  const { branding } = useBranding();
+  const brandWords = branding.panelName.toUpperCase().split(/\s+/).slice(0, 2);
 
   return (
-    <div className="container dash flex flex-col gap-[24px]">
-      <section className="hero relative overflow-hidden flex items-center gap-[30px] p-[32px] p-[34px] rounded-[24px] border border-border bg-[radial-gradient(760px_420px_at_86%_50%,rgba(59,130,246,0.22)_0%,rgba(139,92,246,0.10)_42%,transparent_72%)] bg-gradient-to-b from-[rgba(13,20,36,0.86)] to-[rgba(16,24,46,0.6)] backdrop-blur-[20px] -webkit-backdrop-blur-[20px] shadow-[0_30px_70px_-40px_rgba(0,0,0,0.9)]">
+    <div className="container dash flex flex-col gap-[24px] rise">
+      <section className="hero relative overflow-hidden flex items-center gap-5 sm:gap-[30px] p-5 sm:p-[34px] rounded-[24px] border border-border bg-[radial-gradient(760px_420px_at_86%_50%,rgba(59,130,246,0.22)_0%,rgba(139,92,246,0.10)_42%,transparent_72%)] bg-gradient-to-b from-[rgba(13,20,36,0.86)] to-[rgba(16,24,46,0.6)] backdrop-blur-[20px] -webkit-backdrop-blur-[20px] shadow-[0_30px_70px_-40px_rgba(0,0,0,0.9)]">
         <div className="hero-glow absolute inset-[-40%_-10%_auto_auto] w-[520px] h-[520px] rounded-full bg-[radial-gradient(circle,rgba(34,211,238,0.14)_0%,rgba(59,130,246,0.06)_45%,transparent_72%)] blur-[60px] pointer-events-none" />
         <div className="relative z-10 max-w-[620px]">
           <span className="hero-eyebrow inline-flex items-center gap-[7px] px-[11px] py-[5px] rounded-full border border-brand/22 bg-brand/9 text-[10.5px] font-black tracking-wider uppercase text-sky-300">
             <IconSparkle size={14} />
-            Aether Control Panel
+            {branding.panelName}
           </span>
           <h1 className="mt-[16px] text-[clamp(28px,4vw,44px)] font-black tracking-[-0.035em] leading-[1.15] brand-grad grad-text">
             Welcome back,{firstName ? ` ${firstName}` : ""}.
@@ -83,12 +86,14 @@ export function Dashboard() {
           <span className="hero-orb-ring r1 absolute inset-0 rounded-full border border-cyan-400/40 drop-shadow-[0_0_7px_rgba(34,211,238,0.45)] animate-[spin_16s_linear_infinite]" style={{ borderStyle: "dashed" }} />
           <span className="hero-orb-ring r2 absolute inset-[20px] rounded-full border border-fuchsia-400/35 drop-shadow-[0_0_9px_rgba(168,85,247,0.4)] animate-[spin_11s_linear_infinite_reverse]" />
           <span className="glow-pulse relative z-10 font-display text-center text-[15px] font-black uppercase tracking-[0.32em] leading-[1.7]">
-            Aether<br />Panel
+            {brandWords.map((w, i) => (
+              <React.Fragment key={i}>{i > 0 && <br />}{w}</React.Fragment>
+            ))}
           </span>
         </div>
       </section>
 
-      <section className="stat-grid grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-[14px]">
+      <section className="stat-grid grid grid-cols-2 gap-[10px] sm:grid-cols-[repeat(auto-fit,minmax(190px,1fr))] sm:gap-[14px]">
         <StatTile icon={<IconServer size={18} className="flex-none" />} label="Total servers" value={stats.total} tone="cyan" />
         <StatTile icon={<IconActivity size={18} className="flex-none" />} label="Online" value={stats.running} tone="green" />
         <StatTile icon={<IconCpu size={18} className="flex-none" />} label="Offline" value={stats.stopped} tone="slate" />

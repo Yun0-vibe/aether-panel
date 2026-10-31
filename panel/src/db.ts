@@ -61,6 +61,10 @@ CREATE TABLE IF NOT EXISTS nests (
   name TEXT UNIQUE NOT NULL,
   sort INTEGER NOT NULL DEFAULT 100
 );
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 `);
 
 export interface Egg {
@@ -358,3 +362,50 @@ seedNests();
 }
 
 seedEggs();
+
+/* ------------------------------------------------------------- branding */
+
+export interface Branding {
+  panelName: string;
+  tagline: string;
+  logoUrl: string;
+  faviconUrl: string;
+}
+
+const BRANDING_DEFAULTS: Branding = {
+  panelName: "Aether Panel",
+  tagline: "Game servers, handled.",
+  logoUrl: "",
+  faviconUrl: "",
+};
+
+export function getBranding(): Branding {
+  const rows = db.prepare("SELECT key, value FROM settings").all() as Array<{ key: string; value: string }>;
+  const map = new Map(rows.map((r) => [r.key, r.value]));
+  const pick = (key: keyof typeof BRANDING_DEFAULTS) => {
+    const raw = map.get(key);
+    return raw && raw.trim() !== "" ? raw : BRANDING_DEFAULTS[key];
+  };
+  return {
+    panelName: pick("panelName"),
+    tagline: pick("tagline"),
+    logoUrl: pick("logoUrl"),
+    faviconUrl: pick("faviconUrl"),
+  };
+}
+
+export function setBranding(patch: Partial<Record<keyof Branding, string>>): Branding {
+  const clean: Record<string, string> = {};
+  for (const k of ["panelName", "tagline", "logoUrl", "faviconUrl"] as const) {
+    const v = patch[k];
+    if (typeof v !== "string") continue;
+    const t = v.trim().slice(0, 300);
+    // Clearing the name would break the whole UI, so keep a sane fallback.
+    clean[k] = t === "" && k === "panelName" ? BRANDING_DEFAULTS.panelName : t;
+  }
+  const upsert = db.prepare(
+    "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+  );
+  for (const [k, v] of Object.entries(clean)) upsert.run(k, v);
+  return getBranding();
+}

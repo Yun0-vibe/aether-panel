@@ -11,13 +11,16 @@ import {
   IconServer,
   IconUsers,
   IconArchive,
+  IconSparkle,
 } from "./Icons";
+import { useBranding } from "../brand/BrandContext";
 
 const META: Record<string, { title: string; sub: string }> = {
   "/admin": { title: "Admin overview", sub: "Health of the whole panel" },
   "/admin/users": { title: "Users", sub: "Accounts, roles and access" },
   "/admin/nodes": { title: "Nodes", sub: "Machines running your daemons" },
   "/admin/eggs": { title: "Eggs & nests", sub: "Game presets for the creation wizard" },
+  "/admin/branding": { title: "Branding", sub: "Panel name, logo and favicon" },
   "/admin/servers": { title: "Servers", sub: "Every provisioned game server" },
 };
 
@@ -25,6 +28,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const [navOpen, setNavOpen] = useState(false);
   const { user } = useAuth();
   const logout = useLogoutAndRedirect();
+  const { branding } = useBranding();
   const location = useLocation();
   const meta = META[location.pathname] ?? { title: "Administration", sub: "Aether admin portal" };
   const initials = (user?.email ?? "?").slice(0, 2).toUpperCase();
@@ -52,10 +56,14 @@ export function AdminShell({ children }: { children: ReactNode }) {
         } lg:translate-x-0`}
       >
         <div className="flex items-center gap-3 px-4 py-4">
-          <AetherMark size={36} className="flex-none drop-shadow-[0_0_14px_rgba(168,85,247,0.5)]" />
+          {branding.logoUrl ? (
+            <img src={branding.logoUrl} alt="" className="h-9 w-9 flex-none rounded-[10px] object-contain drop-shadow-[0_0_14px_rgba(168,85,247,0.5)]" />
+          ) : (
+            <AetherMark size={36} className="flex-none drop-shadow-[0_0_14px_rgba(168,85,247,0.5)]" />
+          )}
           <div className="flex min-w-0 flex-col leading-[1.1]">
-            <span className="bg-gradient-to-r from-[#a855f7] via-[#8b5cf6] to-[#6366f1] bg-clip-text text-[15px] font-black tracking-wider text-transparent">
-              AETHER ADMIN
+            <span className="trunc bg-gradient-to-r from-[#a855f7] via-[#8b5cf6] to-[#6366f1] bg-clip-text text-[14px] font-black tracking-wider text-transparent">
+              {(branding.panelName.toUpperCase().split(/\s+/)[0] || "AETHER")} ADMIN
             </span>
             <span className="mt-[3px] text-[8px] font-bold tracking-[0.24em] text-fuchsia-300/70">
               PORTAL
@@ -90,6 +98,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <NavLink to="/admin/eggs" className={linkCls} onClick={() => setNavOpen(false)}>
             <IconArchive size={18} className="flex-none opacity-80" />
             <span>Eggs &amp; nests</span>
+          </NavLink>
+          <NavLink to="/admin/branding" className={linkCls} onClick={() => setNavOpen(false)}>
+            <IconSparkle size={18} className="flex-none opacity-80" />
+            <span>Branding</span>
           </NavLink>
           <NavLink to="/admin/servers" className={linkCls} onClick={() => setNavOpen(false)}>
             <IconServer size={18} className="flex-none opacity-80" />

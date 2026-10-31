@@ -291,10 +291,44 @@ ul {
   min-width: 0;
   animation: fade-up 480ms var(--ease) both;
 }
+@media (max-width: 640px) {
+  .main-content { padding: 16px 14px 48px; }
+}
 
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(14px); }
   to { opacity: 1; transform: none; }
+}
+
+/* ---------- site-wide motion ---------- */
+
+/* Stagger the direct children of a section (cards, tiles, rows). */
+.rise > * { animation: fade-up 560ms var(--ease) both; }
+.rise > *:nth-child(1) { animation-delay: 40ms; }
+.rise > *:nth-child(2) { animation-delay: 110ms; }
+.rise > *:nth-child(3) { animation-delay: 180ms; }
+.rise > *:nth-child(4) { animation-delay: 250ms; }
+.rise > *:nth-child(5) { animation-delay: 320ms; }
+.rise > *:nth-child(6) { animation-delay: 390ms; }
+.rise > *:nth-child(7) { animation-delay: 460ms; }
+.rise > *:nth-child(8) { animation-delay: 530ms; }
+
+/* Slow gradient slide on headline text. */
+.grad-text {
+  background-size: 220% 100%;
+  animation: grad-shift 8s linear infinite;
+}
+@keyframes grad-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Login/register panel entrance. */
+.auth-panel { animation: fade-up 560ms var(--ease) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rise > *, .grad-text, .auth-panel { animation: none; }
 }
 
 @media (max-width: 1024px) {

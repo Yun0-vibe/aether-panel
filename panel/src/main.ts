@@ -17,7 +17,7 @@ import {
   verifyPassword,
 } from "./auth.js";
 import { daemonFetch, specFromServer, statuses } from "./daemon.js";
-import { db, type Egg, type Nest, type Node, type Server, type User, CUSTOM_EGG_ID } from "./db.js";
+import { db, getBranding, setBranding, type Egg, type Nest, type Node, type Server, type User, CUSTOM_EGG_ID } from "./db.js";
 import { registerFilesBackups } from "./files-backups.js";
 import { startScheduler } from "./scheduler.js";
 
@@ -155,6 +155,19 @@ function serverView(s: Server, node: Node | null, status: string) {
     status,
   };
 }
+
+/* ---------------------------------------------------------------- branding */
+
+app.get("/api/branding", async () => {
+  return { branding: getBranding() };
+});
+
+app.patch("/api/admin/branding", async (req, reply) => {
+  if (!requireAdmin(req as Authed, reply)) return;
+  const body = (req.body ?? {}) as Partial<Record<string, string>>;
+  const branding = setBranding(body as never);
+  return { branding };
+});
 
 app.get("/api/servers", async (req, reply) => {
   if (!requireAuth(req as Authed, reply)) return;

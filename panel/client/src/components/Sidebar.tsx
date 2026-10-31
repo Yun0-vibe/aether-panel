@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { useAuth, useLogoutAndRedirect } from "../auth/AuthContext";
 import { RoleBadge } from "./RoleBadge";
+import { useBranding } from "../brand/BrandContext";
 import {
   AetherMark,
   IconClose,
@@ -12,6 +13,7 @@ import {
 } from "./Icons";
 
 export function Sidebar({ open = false, onNavigate }: { open?: boolean; onNavigate?: () => void }) {
+  const { branding } = useBranding();
   const { user } = useAuth();
   const logout = useLogoutAndRedirect();
   const initials = (user?.email ?? "?").slice(0, 2).toUpperCase();
@@ -31,13 +33,17 @@ export function Sidebar({ open = false, onNavigate }: { open?: boolean; onNaviga
     >
       {/* Brand */}
       <div className="flex items-center gap-3 px-4 py-4">
-        <AetherMark size={36} className="flex-none drop-shadow-[0_0_14px_rgba(34,211,238,0.45)]" />
+        {branding.logoUrl ? (
+          <img src={branding.logoUrl} alt="" className="h-9 w-9 flex-none rounded-[10px] object-contain drop-shadow-[0_0_14px_rgba(34,211,238,0.45)]" />
+        ) : (
+          <AetherMark size={36} className="flex-none drop-shadow-[0_0_14px_rgba(34,211,238,0.45)]" />
+        )}
         <div className="flex min-w-0 flex-col leading-[1.1]">
-          <span className="bg-gradient-to-r from-[#22d3ee] via-[#3b82f6] to-[#a855f7] bg-clip-text text-[15px] font-black tracking-wider text-transparent">
-            AETHER
+          <span className="trunc bg-gradient-to-r from-[#22d3ee] via-[#3b82f6] to-[#a855f7] bg-clip-text text-[14px] font-black tracking-wider text-transparent">
+            {branding.panelName.toUpperCase().split(/\s+/)[0]}
           </span>
-          <span className="glow-soft mt-[3px] text-[8px] font-bold tracking-[0.24em] text-sky-200/90">
-            CONTROL PANEL
+          <span className="glow-soft mt-[3px] trunc text-[8px] font-bold tracking-[0.24em] text-sky-200/90">
+            {branding.tagline ? branding.tagline.toUpperCase().slice(0, 24) : "CONTROL PANEL"}
           </span>
         </div>
         <button
