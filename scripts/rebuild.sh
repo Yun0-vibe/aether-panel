@@ -14,6 +14,10 @@ export CGO_ENABLED=0
 
 echo "==> [1/3] panel build (Fastify API + SQLite)"
 (cd panel && npm ci --ignore-scripts --no-audit --no-fund && npm run build)
+# better-sqlite3 ships a native binding compiled/downloaded by its install
+# script — --ignore-scripts skips it, so bootting crashes with
+# "Could not locate the bindings file". Rebuild just that package.
+(cd panel && npm rebuild better-sqlite3 2>&1 | tail -2)
 
 echo "==> [2/3] client build (React UI)"
 (cd panel/client && npm ci --ignore-scripts --no-audit --no-fund && npm run build)
@@ -44,9 +48,19 @@ if [ "$RUN" = 1 ]; then
     nohup node panel/dist/main.js > "$HOME/.aether/logs/panel.log" 2>&1 &
   sleep 2
   echo "build: $(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  PANEL_URL="http://127.0.0.1:${AETHER_PANEL_PORT:-3000}/healthz"
+  ok=""
+  for _ in 1 2 3 4 5 6 7 8; do
+    if curl -fsS "$PANEL_URL" > /dev/null 2>&1; then ok=1; break; fi
+    sleep 1
+  done
   echo "panel pid: $(pgrep -f "node panel/dist/main.js" 2>/dev/null || echo 'NOT RUNNING')"
-  curl -fsS "http://127.0.0.1:${AETHER_PANEL_PORT:-3000}/healthz" 2>/dev/null \
-    && echo "panel: healthy" || echo "panel: booting (check ~/.aether/logs/panel.log)"
+  if [ -n "$ok" ]; then
+    echo "panel: healthy on port ${AETHER_PANEL_PORT:-3000}"
+  else
+    echo "panel: FAILED to boot — last log lines:"
+    tail -n 12 "$HOME/.aether/logs/panel.log" || true
+  fi
   echo
   echo "open your panel, register the admin account, done."
 else
