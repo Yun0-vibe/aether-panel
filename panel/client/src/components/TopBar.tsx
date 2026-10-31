@@ -160,7 +160,7 @@ function Palette({
               onMouseEnter={() => setActive(i)}
               className={`flex w-full items-center gap-[12px] rounded-[11px] px-3 py-[10px] text-left transition-colors duration-100 ${i === active ? "bg-brand/12 text-white" : "text-text-2 hover:bg-white/4"}`}
             >
-              <span className={`flex h-8 w-8 flex-none place-items-center rounded-[9px] border border-border bg-white/4 ${i === active ? "text-brand" : "text-text-3"}`}>{item.icon}</span>
+              <span className={`grid h-8 w-8 flex-none place-items-center rounded-[9px] border border-border bg-white/4 ${i === active ? "text-brand" : "text-text-3"}`}>{item.icon}</span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[13.5px] font-semibold text-white">{item.label}</span>
                 <span className="block truncate text-[11.5px] text-text-3">{item.sub}</span>

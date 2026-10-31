@@ -840,7 +840,7 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
       <div className="flex w-full max-w-[540px] flex-col overflow-hidden rounded-[22px] border border-white/12 bg-gradient-to-b from-[rgba(18,25,43,0.97)] to-[rgba(12,17,31,0.97)] shadow-[0_40px_90px_-30px_rgba(0,0,0,0.95)] animate-[modal-in_300ms_var(--ease)]">
         <div className="sticky top-0 z-[1] flex items-center justify-between border-b border-border bg-[rgba(18,25,43,0.96)] px-5 py-4 backdrop-blur-md">
           <h3 className="text-sm font-bold">{title}</h3>
-          <button className="flex h-8 w-8 flex-none place-items-center rounded-md text-text-3 transition-colors hover:bg-white/5 hover:text-white" onClick={onClose} aria-label="Close">
+          <button className="grid h-8 w-8 flex-none place-items-center rounded-md text-text-3 transition-colors hover:bg-white/5 hover:text-white" onClick={onClose} aria-label="Close">
             <IconClose size={16} />
           </button>
         </div>

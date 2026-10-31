@@ -105,7 +105,7 @@ function OverviewStat({ icon, label, value, tone }: { icon: React.ReactNode; lab
   };
   return (
     <article className="relative flex items-center gap-[13px] overflow-hidden rounded-[18px] border border-border bg-surface px-[16px] py-[18px] backdrop-blur-md transition-all duration-200 hover:-translate-y-[3px] hover:border-brand/60 hover:shadow-[0_22px_44px_-24px_rgba(0,0,0,0.85)]">
-      <span className={`flex h-[40px] w-[40px] flex-none place-items-center rounded-[12px] border border-white/10 ${tones[tone]}`}>{icon}</span>
+      <span className={`grid h-[40px] w-[40px] flex-none place-items-center rounded-[12px] border border-white/10 ${tones[tone]}`}>{icon}</span>
       <div className="flex flex-col leading-[1.2]">
         <span className="font-display text-[25px] font-black tracking-[-0.03em]">{value}</span>
         <span className="mt-[3px] text-[11.5px] font-bold uppercase tracking-[0.04em] text-text-3">{label}</span>
@@ -117,7 +117,7 @@ function OverviewStat({ icon, label, value, tone }: { icon: React.ReactNode; lab
 function QuickCard({ to, icon, title, sub }: { to: string; icon: React.ReactNode; title: string; sub: string }) {
   return (
     <Link to={to} className="glass group flex items-center gap-[14px] p-5 rounded-[18px] transition-all duration-200 hover:-translate-y-[3px] hover:border-fuchsia-400/50 hover:shadow-[0_22px_44px_-24px_rgba(168,85,247,0.55)]">
-      <span className="flex h-[44px] w-[44px] flex-none place-items-center rounded-[13px] bg-[rgba(168,85,247,0.12)] border border-[rgba(168,85,247,0.28)] text-fuchsia-300 transition-transform duration-200 group-hover:scale-110">{icon}</span>
+      <span className="grid h-[44px] w-[44px] flex-none place-items-center rounded-[13px] bg-[rgba(168,85,247,0.12)] border border-[rgba(168,85,247,0.28)] text-fuchsia-300 transition-transform duration-200 group-hover:scale-110">{icon}</span>
       <div className="min-w-0 flex flex-col">
         <span className="text-[14.5px] font-bold text-white">{title}</span>
         <span className="mt-[2px] text-[12px] text-text-3">{sub}</span>
@@ -138,7 +138,7 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
       <div className="flex w-full max-w-[580px] flex-col overflow-hidden rounded-[24px] border border-white/12 bg-gradient-to-b from-[rgba(18,25,43,0.97)] to-[rgba(12,17,31,0.97)] shadow-[0_40px_90px_-30px_rgba(0,0,0,0.95)] animate-[modal-in_320ms_var(--ease)]">
         <div className="sticky top-0 z-[1] flex items-center justify-between border-b border-border bg-[rgba(18,25,43,0.96)] px-5 py-4 backdrop-blur-md">
           <h3 className="text-sm font-bold">{title}</h3>
-          <button className="flex h-8 w-8 flex-none place-items-center rounded-md text-text-3 transition-colors hover:bg-white/5 hover:text-white" onClick={onClose} aria-label="Close modal">
+          <button className="grid h-8 w-8 flex-none place-items-center rounded-md text-text-3 transition-colors hover:bg-white/5 hover:text-white" onClick={onClose} aria-label="Close modal">
             <IconClose size={16} />
           </button>
         </div>
@@ -149,6 +149,62 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
 }
 
 const FIELD = "h-[40px] w-full rounded-lg border border-border bg-[rgba(0,0,0,0.26)] px-[13px] text-[13.5px] text-white outline-none transition-all duration-150 focus:border-brand/60 focus:bg-[rgba(34,211,238,0.05)]";
+
+/** Signups on/off switch — persisted server-side, applies instantly. */
+function RegistrationSwitch() {
+  const toast = useToast();
+  const [open, setOpen] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api<{ open: boolean }>("/api/admin/registration")
+      .then((d) => setOpen(d.open))
+      .catch(() => setOpen(null));
+  }, []);
+
+  async function flip() {
+    if (open === null) return;
+    const next = !open;
+    setBusy(true);
+    try {
+      await api("/api/admin/registration", { method: "PATCH", body: { open: next } });
+      setOpen(next);
+      toast.push(next ? "Sign-ups are open — anyone can register" : "Sign-ups closed — only admins can create accounts", "success");
+    } catch (e) {
+      toast.pushError(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="glass flex items-center justify-between gap-[14px] rounded-[14px] px-[15px] py-[11px]">
+      <div className="min-w-0">
+        <span className="text-[13px] font-bold text-white">Open registration</span>
+        <p className="mt-[2px] text-[11.5px] text-text-3">
+          {open === null ? "Loading…" : open ? "Public — anyone can create an account from the login page." : "Invite-only — accounts are created by admins here."}
+        </p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={open === true}
+        aria-label="Toggle open registration"
+        disabled={open === null || busy}
+        onClick={() => void flip()}
+        className={`relative h-[24px] w-[44px] flex-none rounded-full border transition-all duration-200 ${
+          open ? "border-green/40 bg-[rgba(52,211,153,0.35)]" : "border-border bg-white/8"
+        } ${open === null || busy ? "opacity-50" : "cursor-pointer hover:brightness-110"}`}
+      >
+        <span
+          className={`absolute top-[2px] h-[18px] w-[18px] rounded-full bg-white shadow-[0_2px_8px_rgba(0,0,0,0.5)] transition-all duration-200 ${
+            open ? "left-[23px] shadow-[0_0_10px_rgba(52,211,153,0.7)]" : "left-[2px]"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
 
 export function UsersTab() {
   const toast = useToast();
@@ -177,6 +233,7 @@ export function UsersTab() {
   return (
     <div className="flex flex-col gap-[18px]">
       <PageHead title="Users" sub="Accounts, roles and access to the panel." />
+      <RegistrationSwitch />
       <div className="card overflow-hidden p-0">
         <div className="flex items-center justify-between border-b border-border bg-white/1 px-[15px] py-[13px]">
           <span className="text-[12.5px] font-bold text-text-2">{users?.length ?? 0} users</span>

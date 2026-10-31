@@ -73,7 +73,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             </span>
           </div>
           <button
-            className="ml-auto flex h-8 w-8 flex-none place-items-center rounded-lg text-text-3 transition-colors hover:bg-white/5 hover:text-white lg:hidden"
+            className="ml-auto grid h-8 w-8 flex-none place-items-center rounded-lg text-text-3 transition-colors hover:bg-white/5 hover:text-white lg:hidden"
             onClick={() => setNavOpen(false)}
             aria-label="Close admin navigation"
           >
@@ -137,7 +137,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
               <RoleBadge role={user?.role ?? "user"} />
             </div>
             <button
-              className="flex h-8 w-8 flex-none place-items-center rounded-lg text-text-3 transition-colors hover:bg-[rgba(248,113,113,0.12)] hover:text-[#fca5a5]"
+              className="grid h-8 w-8 flex-none place-items-center rounded-lg text-text-3 transition-colors hover:bg-[rgba(248,113,113,0.12)] hover:text-[#fca5a5]"
               onClick={() => void logout()}
               title="Log out"
               aria-label="Log out"

@@ -95,6 +95,41 @@ function rpIdOf(origin: string): string {
 
 // ---------------------------------------------------------------- auth
 
+/** Sign-ups are open by default; admins can flip them off from the Users tab
+ *  (stored as the "allow_register" setting) or force-close via
+ *  AETHER_OPEN_REGISTER=false. The very first account is always allowed —
+ *  someone has to be able to become admin. */
+function registrationOpen(userCount: number): boolean {
+  if (userCount === 0) return true;
+  const setting = getSetting("allow_register");
+  if (setting === "true") return true;
+  if (setting === "false") return false;
+  const env = process.env.AETHER_OPEN_REGISTER;
+  if (env !== undefined) return env === "true";
+  return true;
+}
+
+app.get("/api/admin/registration", async (req, reply) => {
+  if (!requireAdmin(req as Authed, reply)) return;
+  const userCount = (db.prepare("SELECT COUNT(*) AS c FROM users").get() as any).c as number;
+  const setting = getSetting("allow_register");
+  return {
+    open: registrationOpen(userCount),
+    firstUser: userCount === 0,
+    source: setting === "true" || setting === "false" ? "panel" : process.env.AETHER_OPEN_REGISTER !== undefined ? "env" : "default",
+  };
+});
+
+app.patch("/api/admin/registration", async (req, reply) => {
+  if (!requireAdmin(req as Authed, reply)) return;
+  const body = (req.body ?? {}) as { open?: boolean };
+  if (typeof body.open !== "boolean") {
+    return reply.status(400).send({ error: "open (boolean) is required" });
+  }
+  setSetting("allow_register", String(body.open));
+  return { open: body.open };
+});
+
 app.post("/api/auth/register", async (req, reply) => {
   const body = (req.body ?? {}) as { email?: string; password?: string };
   const email = (body.email ?? "").trim().toLowerCase();
@@ -106,8 +141,7 @@ app.post("/api/auth/register", async (req, reply) => {
     return reply.status(400).send({ error: "password must be at least 8 characters" });
   }
   const userCount = (db.prepare("SELECT COUNT(*) AS c FROM users").get() as any).c as number;
-  const openRegister = process.env.AETHER_OPEN_REGISTER === "true";
-  if (userCount > 0 && !openRegister) {
+  if (!registrationOpen(userCount)) {
     return reply
       .status(403)
       .send({ error: "registration is closed; ask an admin to create your account" });
