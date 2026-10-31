@@ -157,7 +157,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
             </Link>
           </div>
         </header>
-        <main className="main-content">{children}</main>
+        <main className="main-content">
+          <div className="mx-auto w-full max-w-[1440px]">{children}</div>
+        </main>
       </div>
     </div>
   );

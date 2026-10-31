@@ -132,7 +132,9 @@ function Shell({ children }: { children: React.ReactNode }) {
       />
       <div className="flex-1 min-w-[0] flex flex-col main-margin">
         <TopBar onToggleNav={() => setNavOpen((v) => !v)} navOpen={navOpen} />
-        <main className="main-content">{children}</main>
+        <main className="main-content">
+          <div className="mx-auto w-full max-w-[1440px]">{children}</div>
+        </main>
       </div>
     </div>
   );

@@ -254,9 +254,8 @@ ul {
 }
 .main-content {
   flex: 1;
+  width: 100%;
   padding: 26px 30px 56px;
-  max-width: 1440px;
-  margin: 0 auto;
   min-width: 0;
   animation: fade-up 480ms var(--ease) both;
 }
