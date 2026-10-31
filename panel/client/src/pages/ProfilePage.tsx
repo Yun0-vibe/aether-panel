@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Fingerprint } from "lucide-react";
 import { useAuth, api, ApiError, type User } from "../auth/AuthContext";
 import {
   IconMail, IconShield, IconKey, IconDiscord, IconCheck, IconUsers, IconLock, IconAlert, IconClose,
@@ -395,7 +396,7 @@ function SecurityTabMain({ flash }: { flash: (m: string) => void }) {
 
         {methods?.passkey && (
           <button className="btn btn-primary btn-lg btn-block gap-[10px] animate-[fade-up_480ms_var(--ease)]" onClick={() => void verifyPasskeyUnlock()} disabled={unlockBusy}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="flex-none"><path d="M8 11V7a4 4 0 1 1 8 0v4" /><rect x="5" y="11" width="14" height="10" rx="2.5" /><circle cx="12" cy="16" r="1.1" fill="currentColor" stroke="none" /><path d="M12 16.8v1.4" /></svg>
+            <Fingerprint size={16} className="flex-none" />
             Verify with a passkey
           </button>
         )}

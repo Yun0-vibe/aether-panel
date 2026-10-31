@@ -675,7 +675,7 @@ function serverView(s: Server, node: Node | null, status: string) {
 /* ---------------------------------------------------------------- branding */
 
 app.get("/healthz", async () => {
-  return { ok: true, at: Date.now() };
+  return { ok: true, at: Date.now(), product: "aether-panel", core: "aether" };
 });
 
 app.get("/api/branding", async () => {

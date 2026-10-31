@@ -113,7 +113,7 @@ export function Sidebar({ open = false, onNavigate }: { open?: boolean; onNaviga
           </button>
         </div>
         <p className="mono mt-[6px] text-center text-[9px] tracking-wide text-text-3" title="Build id stamped at compile time — 'git pull' then rebuild to see it change">
-          build {__BUILD_ID__}
+          build {__BUILD_ID__} · aether core
         </p>
       </div>
     </aside>
