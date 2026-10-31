@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Fingerprint, ShieldCheck } from "lucide-react";
 import { api, ApiError, useAuth } from "../auth/AuthContext";
 import type { User } from "../auth/AuthContext";
 import { AetherMark, IconActivity, IconLock, IconMail, IconServer, IconShield } from "../components/Icons";
@@ -12,6 +13,8 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [totp, setTotp] = useState("");
   const [mfaToken, setMfaToken] = useState<string | null>(null);
+  // Authenticator-code sign-in: email + 6-digit code, no password needed.
+  const [codeMode, setCodeMode] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [discordEnabled, setDiscordEnabled] = useState(false);
@@ -36,10 +39,10 @@ export function LoginPage() {
     );
   }, []);
 
-  async function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent, codeOnly = false) {
     e.preventDefault(); setErr(null); setBusy(true);
     try {
-      const body: Record<string, unknown> = { email, password };
+      const body: Record<string, unknown> = codeOnly ? { email, totp } : { email, password };
       if (mfaToken) { body.mfaToken = mfaToken; body.totp = totp; }
       const data = await api<AuthResponse>("/api/auth/login", { method: "POST", body, noRedirect: true });
       setUser(data.user);
@@ -50,7 +53,11 @@ export function LoginPage() {
         setMfaToken(body.mfaToken ?? null);
         setErr("Enter the 6-digit code from your authenticator app");
       } else {
-        setErr(e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Login failed");
+        setErr(
+          e instanceof ApiError
+            ? codeOnly && e.message === "invalid credentials" ? "Wrong email or authenticator code" : e.message === "invalid credentials" ? "Wrong email or password" : e.message
+            : e instanceof Error ? e.message : "Login failed",
+        );
       }
     } finally { setBusy(false); }
   }
@@ -71,7 +78,16 @@ export function LoginPage() {
 
   return (
     <AuthShell eyebrow="Welcome back" title="Control your game fleet." sub="Sign in to manage servers, streams and backups from a single console.">
-      <form onSubmit={submit} className="auth-form flex flex-col gap-[15px]">
+      <form onSubmit={(e) => void submit(e, codeMode && !mfaToken)} className="auth-form flex flex-col gap-[15px]">
+        {(mfaToken || codeMode) && (
+          <label className="field flex flex-col gap-[7px]">
+            <span className="field-label text-[11px] font-bold tracking-wider uppercase text-text-3">Email address</span>
+            <div className="field-input-wrap relative flex items-center">
+              <IconMail size={16} className="field-icon absolute left-[12px] text-text-3 pointer-events-none" />
+              <input type="email" required autoFocus={!mfaToken} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@example.com" className="field-input w-full h-[40px] pl-[36px] pr-[13px] rounded-lg bg-[#000]/26 border border-border text-white text-[13.5px] outline-none focus:border-brand/60 focus:bg-brand/5 focus-visible:ring-3 focus-visible:ring-brand/20 transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]" />
+            </div>
+          </label>
+        )}
         {mfaToken && (
           <label className="field flex flex-col gap-[7px]">
             <span className="field-label text-[11px] font-bold tracking-wider uppercase text-text-3">Authenticator code</span>
@@ -89,17 +105,39 @@ export function LoginPage() {
             />
           </label>
         )}
-        {!mfaToken && (
+        {!mfaToken && !codeMode && (
           <>
             <label className="field flex flex-col gap-[7px]"><span className="field-label text-[11px] font-bold tracking-wider uppercase text-text-3">Email address</span><div className="field-input-wrap relative flex items-center"><IconMail size={16} className="field-icon absolute left-[12px] text-text-3 pointer-events-none" /><input type="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@example.com" className="field-input w-full h-[40px] pl-[36px] pr-[13px] rounded-lg bg-[#000]/26 border border-border text-white text-[13.5px] outline-none focus:border-brand/60 focus:bg-brand/5 focus-visible:ring-3 focus-visible:ring-brand/20 transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]" /></div></label>
             <label className="field flex flex-col gap-[7px]"><span className="field-label text-[11px] font-bold tracking-wider uppercase text-text-3">Password</span><div className="field-input-wrap relative flex items-center"><IconLock size={16} className="field-icon absolute left-[12px] text-text-3 pointer-events-none" /><input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="field-input w-full h-[40px] pl-[36px] pr-[13px] rounded-lg bg-[#000]/26 border border-border text-white text-[13.5px] outline-none focus:border-brand/60 focus:bg-brand/5 focus-visible:ring-3 focus-visible:ring-brand/20 transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]" /></div></label>
           </>
         )}
+        {!mfaToken && codeMode && (
+          <label className="field flex flex-col gap-[7px]">
+            <span className="field-label text-[11px] font-bold tracking-wider uppercase text-text-3">6-digit authenticator code</span>
+            <input
+              type="text"
+              autoFocus
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={6}
+              required
+              value={totp}
+              onChange={(e) => setTotp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="123 456"
+              className="field-input w-full h-[40px] px-[13px] rounded-lg bg-[#000]/26 border border-border text-white text-[15px] tracking-[0.35em] text-center outline-none focus:border-brand/60 focus:bg-brand/5 transition-all duration-150"
+            />
+          </label>
+        )}
         {err && <div className="inline-alert flex items-center gap-[8px] px-[13px] py-[10px] rounded-lg text-red-400 bg-red/10 border border-red/30 text-[12.5px]"><IconShield size={15} className="flex-none" />{err}</div>}
-        <button className="btn btn-primary btn-lg btn-block" disabled={busy}>{busy ? <span className="btn-spinner" /> : null}{busy ? "Signing in…" : mfaToken ? "Verify & sign in" : "Sign in"}</button>
+        <button className="btn btn-primary btn-lg btn-block" disabled={busy}>{busy ? <span className="btn-spinner" /> : null}{busy ? "Signing in…" : mfaToken ? "Verify & sign in" : codeMode ? "Sign in with code" : "Sign in"}</button>
       </form>
+      {codeMode && !mfaToken && (
+        <button type="button" className="btn btn-ghost btn-block gap-[10px]" onClick={() => { setCodeMode(false); setTotp(""); setErr(null); }}>
+          Use password instead
+        </button>
+      )}
 
-      {!mfaToken && (
+      {!mfaToken && !codeMode && (
         <div className="flex flex-col gap-[9px]">
           <div className="flex items-center gap-[10px] text-[10px] font-bold uppercase tracking-[0.2em] text-text-3">
             <span className="h-px flex-1 bg-border" /> or <span className="h-px flex-1 bg-border" />
@@ -110,8 +148,17 @@ export function LoginPage() {
             onClick={() => void passkeySign()}
             disabled={busy}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="flex-none"><path d="M8 11V7a4 4 0 1 1 8 0v4" /><rect x="5" y="11" width="14" height="10" rx="2.5" /><circle cx="12" cy="16" r="1.1" fill="currentColor" stroke="none" /><path d="M12 16.8v1.4" /></svg>
+            <Fingerprint size={17} className="flex-none" />
             Sign in with a passkey
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-block gap-[10px]"
+            onClick={() => { setCodeMode(true); setTotp(""); setErr(null); }}
+            disabled={busy}
+          >
+            <ShieldCheck size={17} className="flex-none" />
+            Sign in with authenticator code
           </button>
           {discordEnabled && (
             <a href="/api/auth/discord" className="btn btn-block gap-[10px] !bg-[#5865F2] !text-white !border-[#5865F2] hover:!bg-[#4752C4] transition-colors">

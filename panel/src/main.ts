@@ -179,7 +179,17 @@ app.post("/api/auth/login", async (req, reply) => {
   } else {
     const email = (body.email ?? "").trim().toLowerCase();
     row = db.prepare("SELECT * FROM users WHERE email = ?").get(email) as User | undefined;
-    if (!row || !verifyPassword(body.password ?? "", row.password_hash)) {
+    if (!row) return reply.status(401).send({ error: "invalid credentials" });
+    const password = body.password ?? "";
+    const firstCode = String(body.totp ?? "").trim();
+    if (password !== "") {
+      // Standard path: something you know.
+      if (!verifyPassword(password, row.password_hash)) {
+        return reply.status(401).send({ error: "invalid credentials" });
+      }
+    } else if (!(row.totp_enabled && firstCode)) {
+      // No password: authenticator-code sign-in (something you have) is the
+      // only credential-less factor we accept — anything else is a fail.
       return reply.status(401).send({ error: "invalid credentials" });
     }
   }
