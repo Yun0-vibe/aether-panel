@@ -78,7 +78,7 @@ export function Dashboard() {
             )}
           </div>
         </div>
-        <div className="hero-orb relative flex-none w-[190px] h-[190px] grid place-items-center mr-[18px] hidden lg:block">
+        <div className="hero-orb relative flex-none w-[190px] h-[190px] grid place-items-center mr-[18px] hidden lg:grid">
           <span className="absolute inset-[-70px] rounded-full bg-[radial-gradient(circle,rgba(34,211,238,0.13)_0%,rgba(99,102,241,0.07)_48%,transparent_72%)] blur-[42px] pointer-events-none" />
           <span className="hero-orb-ring r1 absolute inset-0 rounded-full border border-cyan-400/40 drop-shadow-[0_0_7px_rgba(34,211,238,0.45)] animate-[spin_16s_linear_infinite]" style={{ borderStyle: "dashed" }} />
           <span className="hero-orb-ring r2 absolute inset-[20px] rounded-full border border-fuchsia-400/35 drop-shadow-[0_0_9px_rgba(168,85,247,0.4)] animate-[spin_11s_linear_infinite_reverse]" />
