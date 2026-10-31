@@ -123,6 +123,7 @@ export interface ServerSummary {
   port: number | null;
   status: string | null;
   userId: string;
+  owner?: { id: string; displayName: string; email: string } | null;
   nodeId: string;
   node?: { name: string; host: string } | null;
 }

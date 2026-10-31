@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { Plus, Palette, Package, Users2, HardDrive, Server, ChevronRight } from "lucide-react";
 import { api, ApiError, useAuth } from "../auth/AuthContext";
 import type { ServerSummary, User } from "../auth/AuthContext";
 import { useToast } from "../components/Toasts";
@@ -61,12 +62,12 @@ export function AdminOverview() {
       </section>
 
       <section className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-[14px]">
-        <QuickCard to="/admin/servers/new" icon={<IconRocket size={20} className="flex-none" />} title="Create server" sub="Wizard with game presets" />
-        <QuickCard to="/admin/branding" icon={<IconSparkle size={20} className="flex-none" />} title="Branding" sub="Name, logo and favicon" />
-        <QuickCard to="/admin/eggs" icon={<IconArchive size={20} className="flex-none" />} title="Eggs & nests" sub="Game presets for the wizard" />
-        <QuickCard to="/admin/users" icon={<IconUsers size={20} className="flex-none" />} title="Manage users" sub="Create, promote or remove accounts" />
-        <QuickCard to="/admin/nodes" icon={<IconLayers size={20} className="flex-none" />} title="Manage nodes" sub="Register daemon machines" />
-        <QuickCard to="/admin/servers" icon={<IconServer size={20} className="flex-none" />} title="Manage servers" sub="Provision and assign game servers" />
+        <QuickCard to="/admin/servers/new" icon={<Plus size={20} className="flex-none" />} title="Create server" sub="Wizard with game presets" />
+        <QuickCard to="/admin/branding" icon={<Palette size={20} className="flex-none" />} title="Branding" sub="Name, logo and favicon" />
+        <QuickCard to="/admin/eggs" icon={<Package size={20} className="flex-none" />} title="Eggs & nests" sub="Game presets for the wizard" />
+        <QuickCard to="/admin/users" icon={<Users2 size={20} className="flex-none" />} title="Manage users" sub="Create, promote or remove accounts" />
+        <QuickCard to="/admin/nodes" icon={<HardDrive size={20} className="flex-none" />} title="Manage nodes" sub="Register daemon machines" />
+        <QuickCard to="/admin/servers" icon={<Server size={20} className="flex-none" />} title="Manage servers" sub="Provision and assign game servers" />
       </section>
 
       <section className="card p-0 overflow-hidden">
@@ -122,10 +123,10 @@ function QuickCard({ to, icon, title, sub }: { to: string; icon: React.ReactNode
         <span className="mt-[2px] text-[12px] text-text-3">{sub}</span>
       </div>
       <span
-        className="ml-auto grid h-[26px] w-[26px] flex-none shrink-0 place-items-center rounded-[9px] border border-border bg-white/4 text-[16px] font-bold leading-none text-text-3 transition-all duration-200 group-hover:border-fuchsia-400/40 group-hover:bg-fuchsia-400/10 group-hover:text-fuchsia-300"
+        className="ml-auto grid h-[26px] w-[26px] flex-none shrink-0 place-items-center rounded-[9px] border border-border bg-white/4 text-text-3 transition-all duration-200 group-hover:border-fuchsia-400/40 group-hover:bg-fuchsia-400/10 group-hover:text-fuchsia-300"
         aria-hidden="true"
       >
-        ›
+        <ChevronRight size={13} />
       </span>
     </Link>
   );

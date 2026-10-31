@@ -787,11 +787,12 @@ app.post("/api/account/password", async (req, reply) => {
 
 // ---------------------------------------------------------------- user servers
 
-function serverView(s: Server, node: Node | null, status: string) {
+function serverView(s: Server, node: Node | null, status: string, owner: { id: string; displayName: string; email: string } | null = null) {
   return {
     id: s.id,
     name: s.name,
     userId: s.user_id,
+    owner,
     nodeId: s.node_id,
     node: node ? { id: node.id, name: node.name, host: node.host } : null,
     image: s.image,
@@ -803,6 +804,13 @@ function serverView(s: Server, node: Node | null, status: string) {
     lastBackupAt: s.last_backup_at,
     status,
   };
+}
+
+/** Owner (display name / email) lookup for views — admins need to see whose
+ *  server they are managing. */
+function ownerMap(): Map<string, { id: string; displayName: string; email: string }> {
+  const rows = db.prepare("SELECT id, display_name, email FROM users").all() as Array<{ id: string; display_name: string | null; email: string }>;
+  return new Map(rows.map((r) => [r.id, { id: r.id, displayName: r.display_name || r.email.split("@")[0], email: r.email }]));
 }
 
 /* ---------------------------------------------------------------- branding */
@@ -825,14 +833,18 @@ app.patch("/api/admin/branding", async (req, reply) => {
 app.get("/api/servers", async (req, reply) => {
   if (!requireAuth(req as Authed, reply)) return;
   const user = (req as Authed).user;
-  const where = user.role === "admin" ? "" : "WHERE user_id = ?";
+  // Pterodactyl-style scope: admins get the whole fleet by default, and can
+  // opt into just their own with ?scope=mine. Regular users always see their own.
+  const scope = String((req.query as Record<string, unknown> | undefined)?.scope ?? "all");
+  const mineOnly = user.role !== "admin" || scope === "mine";
   const list = db
-    .prepare(`SELECT * FROM servers ${where}`)
-    .all(...(where ? [user.id] : [])) as Server[];
+    .prepare(`SELECT * FROM servers ${mineOnly ? "WHERE user_id = ?" : ""}`)
+    .all(...(mineOnly ? [user.id] : [])) as Server[];
   const nodes = nodeMap();
+  const owners = ownerMap();
   const st = await statuses(nodes, list);
   return {
-    servers: list.map((s) => serverView(s, nodes.get(s.node_id) ?? null, st.get(s.id) ?? "unknown")),
+    servers: list.map((s) => serverView(s, nodes.get(s.node_id) ?? null, st.get(s.id) ?? "unknown", owners.get(s.user_id) ?? null)),
   };
 });
 
@@ -848,7 +860,8 @@ app.get("/api/servers/:id", async (req, reply) => {
   }
   const node = nodeMap().get(s.node_id) ?? null;
   const st = await statuses(new Map(node ? [[node.id, node]] : []), [s]);
-  const view = serverView(s, node, st.get(s.id) ?? "unknown");
+  const owners = ownerMap();
+  const view = serverView(s, node, st.get(s.id) ?? "unknown", owners.get(s.user_id) ?? null);
   if (user.role === "admin") view.userId = s.user_id;
   else view.userId = user.id;
   return { server: view };
@@ -1265,9 +1278,10 @@ app.get("/api/admin/servers", async (req, reply) => {
   if (!requireAdmin(req as Authed, reply)) return;
   const list = db.prepare("SELECT * FROM servers ORDER BY created_at").all() as Server[];
   const nodes = nodeMap();
+  const owners = ownerMap();
   const st = await statuses(nodes, list);
   return {
-    servers: list.map((s) => serverView(s, nodes.get(s.node_id) ?? null, st.get(s.id) ?? "unknown")),
+    servers: list.map((s) => serverView(s, nodes.get(s.node_id) ?? null, st.get(s.id) ?? "unknown", owners.get(s.user_id) ?? null)),
   };
 });
 

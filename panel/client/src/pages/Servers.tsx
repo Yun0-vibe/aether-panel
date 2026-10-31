@@ -1,12 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { api, ApiError } from "../auth/AuthContext";
+import { api, ApiError, useAuth } from "../auth/AuthContext";
 import type { ServerSummary } from "../auth/AuthContext";
 import { ServerCard } from "../components/ServerCard";
-import { IconSearch, IconServer, IconActivity, IconClose } from "../components/Icons";
+import { IconSearch, IconServer, IconActivity, IconClose, IconShield } from "../components/Icons";
 
 type Filter = "all" | "online" | "offline";
 
 export function ServersPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const [scope, setScope] = useState<"mine" | "all">("mine");
   const [servers, setServers] = useState<ServerSummary[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -14,16 +17,18 @@ export function ServersPage() {
 
   useEffect(() => {
     let cancelled = false;
+    setServers(null);
     (async () => {
       try {
-        const data = await api<{ servers: ServerSummary[] }>("/api/servers");
+        // Admin override: "all" fetches the whole fleet; everyone else always gets their own.
+        const data = await api<{ servers: ServerSummary[] }>(`/api/servers${scope === "all" ? "?scope=all" : "?scope=mine"}`);
         if (!cancelled) setServers(data.servers);
       } catch (e) {
         if (!cancelled) setErr(e instanceof ApiError ? e.message : "Failed to load servers");
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [scope]);
 
   const filtered = useMemo(() => {
     const list = servers ?? [];
@@ -54,9 +59,17 @@ export function ServersPage() {
       <header className="page-head row-head flex items-flex-end justify-between gap-[20px] flex-wrap mb-[22px]">
         <div>
           <h1 className="page-title text-[clamp(26px,3vw,34px)] font-black brand-grad grad-text">Servers</h1>
-          <p className="mt-[6px] text-[13.5px] text-text-2">Every game server assigned to your account</p>
+          <p className="mt-[6px] text-[13.5px] text-text-2">
+            {isAdmin && scope === "all" ? "Admin override — every server on the panel" : servers && servers.length === 1 ? "The game server assigned to your account" : "Game servers assigned to your account"}
+          </p>
         </div>
         <div className="server-tools flex items-center gap-[10px] flex-wrap">
+          {isAdmin && (
+            <div className="filter-group flex gap-[4px] px-3 py-[3px] rounded-[11px] bg-white/3 border border-border" role="group" aria-label="Admin override scope">
+              <FilterChip active={scope === "mine"} onClick={() => setScope("mine")}>My servers</FilterChip>
+              <FilterChip icon={<IconShield size={14} className="flex-none" />} active={scope === "all"} onClick={() => setScope("all")}>Admin override</FilterChip>
+            </div>
+          )}
           <div className="search-box relative">
             <IconSearch size={16} className="absolute left-[11px] text-text-3 pointer-events-none" />
             <input className="w-[260px] h-9 pl-[34px] pr-[34px] rounded-lg bg-white/5 border border-border text-[12.5px] outline-none focus:border-brand/60 focus:bg-brand/5 focus-visible:ring-3 focus-visible:ring-brand/20 transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter by name, image or node" aria-label="Filter servers" />

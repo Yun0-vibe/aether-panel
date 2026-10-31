@@ -307,25 +307,10 @@ export function TopBar({ onToggleNav, navOpen }: { onToggleNav: () => void; navO
         </div>
       </div>
 
-      {/* Search — a real command palette launcher */}
-      <button
-        className="group relative hidden md:flex flex-1 max-w-[420px] items-center h-9 pl-10 pr-[54px] rounded-lg bg-white/5 border border-border text-left outline-none hover:border-brand/50 hover:bg-white/7 transition-all duration-150"
-        onClick={() => setPaletteOpen(true)}
-        aria-label="Open command palette"
-      >
-        <IconSearch size={16} className="absolute left-[11px] text-text-3 pointer-events-none" />
-        <span className="text-[13px] text-text-3 group-hover:text-text-2 transition-colors">Search servers, nodes, users…</span>
-        <kbd className="absolute right-[10px] py-[2px] px-[6px] rounded-[5px] text-[10px] text-text-3 bg-white/5 border border-border pointer-events-none font-mono">⌘K</kbd>
-      </button>
-      <button
-        className="md:hidden flex-none w-8 h-8 grid place-items-center rounded-[9px] border border-border bg-white/4 text-text-3 hover:text-brand hover:border-brand/50 transition-all duration-150"
-        onClick={() => setPaletteOpen(true)}
-        aria-label="Search"
-      >
-        <IconSearch size={15} />
-      </button>
+      {/* Search bar removed — ⌘K still opens the palette for keyboard users */}
+      <div className="flex-1" />
 
-      <div className="flex items-center gap-[10px] ml-auto">
+      <div className="flex items-center gap-[10px] ml-auto flex-none flex-1 justify-end">
         <span className="hidden md:flex font-mono text-[12px] text-text-3 tracking-[0.04em] pr-[4px]">
           {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
         </span>

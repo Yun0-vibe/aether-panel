@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import type { ServerSummary } from "../auth/AuthContext";
 import { useToast } from "../components/Toasts";
-import { IconActivity, IconGlobe, IconHardDrive, IconCopy, IconCheck, IconServer } from "../components/Icons";
+import { IconActivity, IconGlobe, IconHardDrive, IconCopy, IconCheck, IconServer, IconUsers } from "../components/Icons";
 
 export function StatusBadge({ status }: { status: string | null }) {
   const s = (status ?? "").toLowerCase();
@@ -83,6 +83,12 @@ export function ServerCard({ server }: { server: ServerSummary }) {
         </div>
 
         <div className="flex flex-wrap gap-[6px]">
+          {server.owner && (
+            <span className="inline-flex items-center gap-[5px] max-w-full px-[3.5px] py-[3px] rounded-lg bg-[rgba(168,85,247,0.08)] border border-[rgba(168,85,247,0.28)] text-[11px] font-semibold text-[#c4b5fd]" title={server.owner.email}>
+              <IconUsers size={14} className="flex-none opacity-80" />
+              <span className="trunc">{server.owner.displayName}</span>
+            </span>
+          )}
           <span className="inline-flex items-center gap-[5px] max-w-full px-[3.5px] py-[3px] rounded-lg bg-white/4 border border-border text-[11px] font-semibold text-text-2">
             <IconHardDrive size={14} className="text-text-3 flex-none" />
             <span className="trunc" title={name}>{name}</span>
