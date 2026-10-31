@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import type { ServerSummary } from "../auth/AuthContext";
-import { IconActivity, IconGlobe, IconHardDrive, IconServer } from "../components/Icons";
+import { useToast } from "../components/Toasts";
+import { IconActivity, IconGlobe, IconHardDrive, IconCopy, IconCheck, IconServer } from "../components/Icons";
 
 export function StatusBadge({ status }: { status: string | null }) {
   const s = (status ?? "").toLowerCase();
@@ -45,6 +46,21 @@ export function ServerCard({ server }: { server: ServerSummary }) {
   const running = ["running", "started", "online"].includes((server.status ?? "").toLowerCase());
   const name = gameName(server.image);
   const initials = name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+  const toast = useToast();
+  const host = server.node?.host;
+  const address = host && server.port != null ? `${host}:${server.port}` : null;
+
+  async function copyAddress(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!address) return;
+    try {
+      await navigator.clipboard.writeText(address);
+      toast.push(`Copied ${server.name} — ${address}`, "success");
+    } catch {
+      toast.pushError("Clipboard blocked by the browser");
+    }
+  }
 
   return (
     <Link to={`/servers/${server.id}`} className="relative flex flex-col overflow-hidden rounded-[18px] border border-border bg-surface backdrop-blur-[16px] -webkit-backdrop-blur-[16px] shadow-[0_18px_40px_-26px_rgba(0,0,0,0.85)] transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group animate-[fade-up_520ms_var(--ease)_both]">
@@ -75,12 +91,23 @@ export function ServerCard({ server }: { server: ServerSummary }) {
             <IconActivity size={14} className="text-text-3 flex-none" />
             {server.node?.name ?? server.nodeId ?? "—"}
           </span>
-          {server.port != null && (
+          {address ? (
+            <button
+              onClick={copyAddress}
+              title={`Click to copy ${address}`}
+              aria-label={`Copy server address ${address}`}
+              className="inline-flex items-center gap-[5px] max-w-full px-[3.5px] py-[3px] rounded-lg bg-white/4 border border-border text-[11px] font-semibold text-text-2 font-mono transition-colors duration-150 hover:border-brand/60 hover:text-brand cursor-copy"
+            >
+              <IconGlobe size={14} className="text-text-3 flex-none" />
+              <span className="trunc">{address}</span>
+              <IconCopy size={12} className="text-text-3 flex-none" />
+            </button>
+          ) : server.port != null ? (
             <span className="inline-flex items-center gap-[5px] max-w-full px-[3.5px] py-[3px] rounded-lg bg-white/4 border border-border text-[11px] font-semibold text-text-2">
               <IconGlobe size={14} className="text-text-3 flex-none" />
               {server.port}
             </span>
-          )}
+          ) : null}
         </div>
 
         <span className="self-start text-[12px] font-bold text-brand opacity-0 translate-x-[-6px] transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:opacity-100 group-hover:translate-x-0">Manage server</span>

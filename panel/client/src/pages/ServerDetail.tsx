@@ -6,13 +6,139 @@ import { StatusBadge } from "../components/ServerCard";
 import { useToast } from "../components/Toasts";
 import { FilesTab } from "./ServerFiles";
 import { BackupsTab } from "./ServerBackups";
-import { IconChevronLeft, IconPower, IconRefresh, IconSkull, IconStop, IconTerminal, IconClock, IconGlobe, IconServer, IconActivity } from "../components/Icons";
+import { IconChevronLeft, IconPower, IconRefresh, IconSkull, IconStop, IconTerminal, IconClock, IconGlobe, IconServer, IconActivity, IconCpu, IconMemory, IconCopy, IconCheck } from "../components/Icons";
 
 type Action = "start" | "stop" | "restart" | "kill";
 const TABS = ["Console", "Files", "Backups"] as const;
 type ServerTab = (typeof TABS)[number];
 
 interface ConsoleLine { kind: "out" | "status"; text: string; }
+
+interface StatsSnap {
+  running: boolean;
+  cpuPercent: number;
+  memUsedMB: number;
+  memLimitMB: number;
+  pids: number;
+}
+
+/** Polls the daemon relay for one server's live resource usage. */
+function LiveStats({ id, runningStatus }: { id: string; runningStatus: boolean }) {
+  const [stats, setStats] = useState<StatsSnap | null>(null);
+  const [history, setHistory] = useState<number[]>([]);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let dead = false;
+    async function poll() {
+      try {
+        const d = await api<{ stats?: StatsSnap }>(`/api/servers/${encodeURIComponent(id)}/stats`);
+        if (dead) return;
+        const s = d.stats ?? null;
+        setStats(s);
+        setFailed(false);
+        if (s && s.running) {
+          setHistory((h) => {
+            const next = [...h, s.cpuPercent];
+            return next.length > 40 ? next.slice(-40) : next;
+          });
+        }
+      } catch {
+        if (!dead) setFailed(true);
+      }
+    }
+    void poll();
+    const t = window.setInterval(poll, 5000);
+    return () => { dead = true; window.clearInterval(t); };
+  }, [id]);
+
+  if (failed) return null; // offline node: hide silently, status badge already shows it
+
+  const cpu = stats?.cpuPercent ?? 0;
+  const memU = stats?.memUsedMB ?? 0;
+  const memL = Math.max(stats?.memLimitMB ?? 0, 1);
+  const memPct = Math.min(100, (memU / memL) * 100);
+
+  // Sparkline path (0-100 scaled, right-aligned).
+  const W = 240, H = 42;
+  const pts = history.length > 1
+    ? history.map((v, i) => `${(i / (history.length - 1)) * W},${H - Math.min(100, v) / 100 * (H - 4) - 2}`).join(" ")
+    : null;
+
+  return (
+    <section className="card p-[16px] flex flex-col gap-[13px]">
+      <h3 className="flex items-center gap-[8px] text-[13px] font-bold tracking-[0.04em] uppercase text-text-2">
+        <IconActivity size={15} className="flex-none text-brand" /> Live usage
+        <span className={`ml-auto inline-flex items-center gap-[6px] text-[10.5px] font-bold normal-case tracking-normal ${runningStatus ? "text-green-400" : "text-text-3"}`}>
+          <span className={`w-[6px] h-[6px] rounded-full ${runningStatus ? "bg-green-500 animate-pulse" : "bg-slate-500"}`} />
+          {runningStatus ? "live" : "stopped"}
+        </span>
+      </h3>
+
+      <div>
+        <div className="flex items-baseline justify-between">
+          <span className="inline-flex items-center gap-[6px] text-[11px] font-bold uppercase tracking-wider text-text-3"><IconCpu size={13} className="flex-none" /> CPU</span>
+          <span className="font-mono text-[16px] font-bold text-white">{cpu.toFixed(1)}<span className="text-[11px] text-text-3">%</span></span>
+        </div>
+        {pts && (
+          <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} className="mt-[6px] overflow-visible" preserveAspectRatio="none" aria-hidden="true">
+            <polyline points={pts} fill="none" stroke="#22d3ee" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" opacity="0.9" />
+            <polyline points={`0,${H} ${pts} ${W},${H}`} fill="rgba(34,211,238,0.10)" stroke="none" />
+          </svg>
+        )}
+      </div>
+
+      <div>
+        <div className="flex items-baseline justify-between">
+          <span className="inline-flex items-center gap-[6px] text-[11px] font-bold uppercase tracking-wider text-text-3"><IconMemory size={13} className="flex-none" /> Memory</span>
+          <span className="font-mono text-[13px] font-bold text-white">{memU.toFixed(0)}<span className="text-[11px] text-text-3"> / {memL.toFixed(0)} MB</span></span>
+        </div>
+        <div className="mt-[7px] h-[6px] w-full overflow-hidden rounded-full bg-white/6">
+          <div
+            className="h-full rounded-full transition-all duration-500 brand-grad"
+            style={{ width: `${runningStatus ? memPct : 0}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between border-t border-border pt-[11px] text-[11.5px] text-text-3">
+        <span>Processes</span>
+        <span className="font-mono text-white">{stats?.pids ?? 0}</span>
+      </div>
+    </section>
+  );
+}
+
+/** host:port chip with one-click copy-to-clipboard. */
+function CopyAddress({ host, port, label }: { host: string; port: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  const toast = useToast();
+  const address = `${host}:${port}`;
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      toast.push(`Copied ${label} — ${address}`, "success");
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      toast.pushError("Clipboard blocked by the browser");
+    }
+  }
+
+  return (
+    <button
+      onClick={copy}
+      className="group inline-flex items-center gap-[7px] px-[10px] py-[7px] rounded-lg bg-white/4 border border-border font-mono text-[11.5px] text-text-2 transition-all duration-150 hover:border-brand/60 hover:text-brand"
+      title={`Click to copy ${address}`}
+      aria-label={`Copy server address ${address}`}
+    >
+      <IconGlobe size={14} className="flex-none text-text-3 group-hover:text-brand" />
+      <span className="trunc max-w-[220px]">{address}</span>
+      {copied ? <IconCheck size={13} className="flex-none text-green-400" /> : <IconCopy size={13} className="flex-none text-text-3 group-hover:text-brand" />}
+    </button>
+  );
+}
 
 function buildWsUrl(id: string) {
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -21,7 +147,7 @@ function buildWsUrl(id: string) {
 
 export function ServerDetail() {
   const { id = "" } = useParams();
-  const [server, setServer] = useState<ServerSummary | null>(null);
+  const [server, setServer] = useState<(ServerSummary & { ports?: Array<{ port: number; protocol: string }> }) | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<Action | null>(null);
   const [connected, setConnected] = useState(false);
@@ -146,7 +272,11 @@ export function ServerDetail() {
           <div className="detail-meta flex items-center gap-[8px] flex-wrap">
             <span className="detail-chip inline-flex items-center gap-[6px] px-[4px] py-[10px] rounded-lg bg-white/4 border border-border text-[11.5px] font-semibold text-text-2"><IconServer size={14} className="flex-none text-text-3" /><span className="trunc max-w-[260px]" title={server.image}>{server.image}</span></span>
             <span className="detail-chip inline-flex items-center gap-[6px] px-[4px] py-[10px] rounded-lg bg-white/4 border border-border text-[11.5px] font-semibold text-text-2"><IconActivity size={14} className="flex-none text-text-3" /><span>Node: {server.node?.name ?? server.nodeId}</span></span>
-            {server.port != null && (<span className="detail-chip inline-flex items-center gap-[6px] px-[4px] py-[10px] rounded-lg bg-white/4 border border-border text-[11.5px] font-semibold text-text-2"><IconGlobe size={14} className="flex-none text-text-3" /><span>Port {server.port}</span></span>)}
+            {(() => {
+              const host = server.node?.host;
+              const primary = server.port ?? server.ports?.find((p) => p.protocol === "tcp")?.port ?? null;
+              return host && primary ? <CopyAddress host={host} port={String(primary)} label="server address" /> : null;
+            })()}
             <StatusBadge status={status} />
           </div>
         </div>
@@ -190,15 +320,18 @@ export function ServerDetail() {
             </form>
           </section>
 
-          <aside className="card info-card flex flex-col gap-[14px] p-[16px]">
-            <h3 className="text-[14px] font-bold tracking-[0.04em] uppercase text-text-2">Server info</h3>
-            <dl className="info-list flex flex-col gap-[13px] m-0">
-              <div className="flex flex-col gap-[4px]"><dt className="text-[10px] font-black tracking-widest uppercase text-text-3">Image</dt><dd className="mono text-[13px] text-white">{server.image}</dd></div>
-              <div className="flex flex-col gap-[4px]"><dt className="text-[10px] font-black tracking-widest uppercase text-text-3">Port</dt><dd className="text-[13px] text-white">{server.port ?? "—"}</dd></div>
-              <div className="flex flex-col gap-[4px]"><dt className="text-[10px] font-black tracking-widest uppercase text-text-3">Node</dt><dd className="text-[13px] text-white">{server.node?.name ?? server.nodeId}{server.node?.host && <span className="muted text-text-3"> ({server.node.host})</span>}</dd></div>
-              <div className="flex flex-col gap-[4px]"><dt className="text-[10px] font-black tracking-widest uppercase text-text-3">Status</dt><dd className="flex items-center gap-[2px]"><StatusBadge status={status} /></dd></div>
-            </dl>
-            <div className="cpu-note mt-[12px] border-t border-border pt-[12px] text-[11.5px] text-text-3 leading-[1.6]">CPU/memory limits (cpus, memoryMB) are configured by admins when the server is created.</div>
+          <aside className="flex flex-col gap-[16px]">
+            <LiveStats id={id} runningStatus={running} />
+            <section className="card info-card flex flex-col gap-[14px] p-[16px]">
+              <h3 className="text-[14px] font-bold tracking-[0.04em] uppercase text-text-2">Server info</h3>
+              <dl className="info-list flex flex-col gap-[13px] m-0">
+                <div className="flex flex-col gap-[4px]"><dt className="text-[10px] font-black tracking-widest uppercase text-text-3">Image</dt><dd className="mono text-[13px] text-white">{server.image}</dd></div>
+                <div className="flex flex-col gap-[4px]"><dt className="text-[10px] font-black tracking-widest uppercase text-text-3">Ports</dt><dd className="flex flex-wrap gap-[4px]">{(server.ports ?? []).map((p) => (<span key={`${p.port}-${p.protocol}`} className="rounded-[4px] border border-border bg-white/4 px-[6px] py-[2px] text-[10.5px] font-bold text-text-2">{p.port}/{p.protocol}</span>))}{!(server.ports ?? []).length && <span className="text-white">{server.port ?? "—"}</span>}</dd></div>
+                <div className="flex flex-col gap-[4px]"><dt className="text-[10px] font-black tracking-widest uppercase text-text-3">Node</dt><dd className="text-[13px] text-white">{server.node?.name ?? server.nodeId}{server.node?.host && <span className="muted text-text-3"> ({server.node.host})</span>}</dd></div>
+                <div className="flex flex-col gap-[4px]"><dt className="text-[10px] font-black tracking-widest uppercase text-text-3">Status</dt><dd className="flex items-center gap-[2px]"><StatusBadge status={status} /></dd></div>
+              </dl>
+              <div className="cpu-note mt-[12px] border-t border-border pt-[12px] text-[11.5px] text-text-3 leading-[1.6]">CPU/memory limits (cpus, memoryMB) are configured by admins when the server is created.</div>
+            </section>
           </aside>
         </div>
       )}

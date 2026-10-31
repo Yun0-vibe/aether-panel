@@ -11,6 +11,7 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { Dashboard } from "./pages/Dashboard";
 import { ServersPage } from "./pages/Servers";
 import { ServerDetail } from "./pages/ServerDetail";
+import { ServerWizard } from "./pages/ServerWizard";
 import { AdminOverview, NodesTab, ServersTab, UsersTab } from "./pages/Admin";
 
 export default function App() {
@@ -89,6 +90,16 @@ export default function App() {
                 <RequireAdmin>
                   <AdminShell>
                     <NodesTab />
+                  </AdminShell>
+                </RequireAdmin>
+              }
+            />
+            <Route
+              path="/admin/servers/new"
+              element={
+                <RequireAdmin>
+                  <AdminShell>
+                    <ServerWizard />
                   </AdminShell>
                 </RequireAdmin>
               }

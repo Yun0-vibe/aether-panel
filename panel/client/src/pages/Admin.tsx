@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { api, ApiError, useAuth } from "../auth/AuthContext";
 import type { ServerSummary, User } from "../auth/AuthContext";
 import { useToast } from "../components/Toasts";
-import { IconClose, IconPlus, IconUsers, IconLayers, IconServer, IconActivity, IconZap, IconShield } from "../components/Icons";
+import { IconClose, IconPlus, IconUsers, IconLayers, IconServer, IconActivity, IconZap, IconShield, IconRocket } from "../components/Icons";
 import { RoleBadge } from "../components/RoleBadge";
 
 type AdminUser = User;
@@ -13,6 +13,7 @@ interface AdminServer extends Omit<ServerSummary, "node"> {
   node?: { name: string; host: string } | null;
 }
 interface EggPort { port: number; protocol: string; }
+interface NodeHealth { id: string; name: string; online: boolean; serverCount: number; version: string | null; }
 interface Egg { id: string; name: string; description?: string; image: string; ports?: EggPort[]; env?: Record<string, string>; memoryMB?: number; cpus?: number; }
 
 function PageHead({ title, sub }: { title: string; sub: string }) {
@@ -58,6 +59,7 @@ export function AdminOverview() {
       </section>
 
       <section className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-[14px]">
+        <QuickCard to="/admin/servers/new" icon={<IconRocket size={20} className="flex-none" />} title="Create server" sub="Wizard with game presets" />
         <QuickCard to="/admin/users" icon={<IconUsers size={20} className="flex-none" />} title="Manage users" sub="Create, promote or remove accounts" />
         <QuickCard to="/admin/nodes" icon={<IconLayers size={20} className="flex-none" />} title="Manage nodes" sub="Register daemon machines" />
         <QuickCard to="/admin/servers" icon={<IconServer size={20} className="flex-none" />} title="Manage servers" sub="Provision and assign game servers" />
@@ -221,13 +223,24 @@ function UserForm({ initial, submitLabel, onSubmit, done }: { initial?: AdminUse
 export function NodesTab() {
   const toast = useToast();
   const [nodes, setNodes] = useState<Node[] | null>(null);
+  const [health, setHealth] = useState<NodeHealth[] | null>(null);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Node | null>(null);
 
   const load = useCallback(async () => {
     try { const data = await api<{ nodes?: Node[] } | Node[]>("/api/admin/nodes"); setNodes(Array.isArray(data) ? data : (data.nodes ?? [])); } catch (e) { toast.pushError(e); }
   }, [toast]);
-  useEffect(() => { void load(); }, [load]);
+
+  const loadHealth = useCallback(async () => {
+    try {
+      const data = await api<{ nodes: NodeHealth[] }>("/api/admin/nodes/status");
+      setHealth(data.nodes ?? []);
+    } catch { setHealth(null); }
+  }, []);
+
+  useEffect(() => { void load(); void loadHealth(); const t = window.setInterval(loadHealth, 15_000); return () => window.clearInterval(t); }, [load, loadHealth]);
+
+  const healthFor = (id: string) => health?.find((h) => h.id === id) ?? null;
 
   async function del(n: Node) {
     if (!window.confirm(`Delete node ${n.name}?`)) return;
@@ -237,6 +250,38 @@ export function NodesTab() {
   return (
     <div className="flex flex-col gap-[18px]">
       <PageHead title="Nodes" sub="Machines running the Aether daemon." />
+
+      {/* live health cards */}
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(290px,1fr))] gap-[14px]">
+        {nodes === null && <div className="card p-6 text-[13px] text-text-3">Loading nodes…</div>}
+        {nodes?.map((n) => {
+          const h = healthFor(n.id);
+          const loading = health === null;
+          const online = h?.online === true;
+          return (
+            <article key={n.id} className={`relative flex flex-col gap-[10px] rounded-[18px] border p-[18px] transition-all duration-200 hover:-translate-y-[2px] ${online ? "border-green/30 bg-[rgba(20,40,32,0.45)] hover:shadow-[0_22px_44px_-26px_rgba(52,211,153,0.45)]" : "border-border bg-surface hover:shadow-[0_22px_44px_-26px_rgba(0,0,0,0.85)]"}`}>
+              <div className="flex items-center justify-between gap-[10px]">
+                <span className="flex items-center gap-[9px] min-w-0">
+                  <IconLayers size={17} className={`flex-none ${online ? "text-green-400" : "text-text-3"}`} />
+                  <span className="text-[15px] font-bold trunc">{n.name}</span>
+                </span>
+                <span className={`status-badge ${online ? "badge-green" : loading ? "badge-gray" : "badge-red"}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full bg-current ${online ? "animate-pulse shadow-[0_0_6px_currentColor]" : ""}`} />
+                  {loading ? "checking…" : online ? "daemon online" : "daemon offline"}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-[6px] text-[11.5px] text-text-2">
+                <span className="mono trunc rounded-lg border border-border bg-[rgba(0,0,0,0.3)] px-[9px] py-[4px]">{n.host}:{n.daemonPort}</span>
+              </div>
+              <div className="flex items-center justify-between border-t border-border pt-[10px] text-[11.5px] text-text-3">
+                <span>{(h?.serverCount ?? 0)} server{(h?.serverCount ?? 0) === 1 ? "" : "s"} hosted</span>
+                {h?.version && <span className="mono trunc max-w-[70px]">{h.version.trim().slice(0, 8)}</span>}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
       <div className="card overflow-hidden p-0">
         <div className="flex items-center justify-between border-b border-border bg-white/1 px-[15px] py-[13px]">
           <span className="text-[12.5px] font-bold text-text-2">{nodes?.length ?? 0} nodes</span>
@@ -334,7 +379,7 @@ export function ServersTab() {
       <div className="card overflow-hidden p-0">
         <div className="flex items-center justify-between border-b border-border bg-white/1 px-[15px] py-[13px]">
           <span className="text-[12.5px] font-bold text-text-2">{servers?.length ?? 0} servers</span>
-          <button className="btn btn-primary btn-sm" onClick={() => setAdding(true)}><IconPlus size={15} className="flex-none" /> New server</button>
+          <Link to="/admin/servers/new" className="btn btn-primary btn-sm"><IconPlus size={15} className="flex-none" /> New server</Link>
         </div>
         <table className="table">
           <thead><tr><th>Owner</th><th>Name</th><th>Image</th><th>Ports</th><th>Status</th><th className="th-actions">Actions</th></tr></thead>
