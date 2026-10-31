@@ -78,9 +78,8 @@ export function ServersPage() {
         <div className="page-loading flex flex-col items-center justify-center gap-[14px] min-h-[46vh] text-text-3 text-[13px]"><div className="spinner" /></div>
       ) : filtered.length === 0 ? (
         <div className="card empty-card flex flex-col items-center text-center gap-[10px] p-[52px] p-[24px]">
-          <span className="empty-art relative w-[84px] h-[84px] grid place-items-center rounded-[24px] bg-brand/7 border border-brand/22 mb-[6px]">
+          <span className="empty-art relative w-[84px] h-[84px] grid place-items-center rounded-[24px] bg-[radial-gradient(circle_at_50%_45%,rgba(34,211,238,0.14)_0%,rgba(99,102,241,0.06)_60%,transparent)] border border-brand/22 mb-[6px]">
             <IconServer size={32} className="text-brand" />
-            <span className="empty-art-ring absolute inset-[-10px] rounded-[32px] border-[1px] border-dashed border-brand/22 animate-[spin_18s_linear_infinite]" />
           </span>
           <h3 className="text-[19px] font-bold">{servers.length === 0 ? "No servers yet" : "Nothing matches"}</h3>
           <p className="max-w-[460px] text-text-2 text-[13.5px]">{servers.length === 0 ? "No game servers have been assigned to your account yet." : "Try a different search term or switch the status filter."}</p>

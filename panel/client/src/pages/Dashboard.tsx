@@ -52,8 +52,8 @@ export function Dashboard() {
 
   return (
     <div className="container dash flex flex-col gap-[24px]">
-      <section className="hero relative overflow-hidden flex items-center gap-[30px] p-[32px] p-[34px] rounded-[24px] border border-border bg-gradient-to-b from-[rgba(13,20,36,0.86)] to-[rgba(16,24,46,0.6)] backdrop-blur-[20px] -webkit-backdrop-blur-[20px] shadow-[0_30px_70px_-40px_rgba(0,0,0,0.9)]">
-        <div className="hero-glow absolute inset-[-40%_-10%_auto_auto] w-[520px] h-[520px] rounded-full bg-[radial-gradient(circle,rgba(34,211,238,0.2)_0%,transparent_65%)] blur-[30px] pointer-events-none animate-[float1_20s_ease-in-out_infinite_alternate]" />
+      <section className="hero relative overflow-hidden flex items-center gap-[30px] p-[32px] p-[34px] rounded-[24px] border border-border bg-[radial-gradient(760px_420px_at_86%_50%,rgba(59,130,246,0.22)_0%,rgba(139,92,246,0.10)_42%,transparent_72%)] bg-gradient-to-b from-[rgba(13,20,36,0.86)] to-[rgba(16,24,46,0.6)] backdrop-blur-[20px] -webkit-backdrop-blur-[20px] shadow-[0_30px_70px_-40px_rgba(0,0,0,0.9)]">
+        <div className="hero-glow absolute inset-[-40%_-10%_auto_auto] w-[520px] h-[520px] rounded-full bg-[radial-gradient(circle,rgba(34,211,238,0.14)_0%,rgba(59,130,246,0.06)_45%,transparent_72%)] blur-[60px] pointer-events-none" />
         <div className="relative z-10 max-w-[620px]">
           <span className="hero-eyebrow inline-flex items-center gap-[7px] px-[11px] py-[5px] rounded-full border border-brand/22 bg-brand/9 text-[10.5px] font-black tracking-wider uppercase text-sky-300">
             <IconSparkle size={14} />
@@ -79,9 +79,8 @@ export function Dashboard() {
           </div>
         </div>
         <div className="hero-orb relative flex-none w-[190px] h-[190px] grid place-items-center mr-[18px] hidden lg:block">
-          <span className="hero-orb-ring r1 absolute inset-0 rounded-full border border-brand/28 animate-[spin_14s_linear_infinite]" style={{ borderStyle: "dashed" }} />
-          <span className="hero-orb-ring r2 absolute inset-[22px] rounded-full border border-violet/32 animate-[spin_10s_linear_infinite_reverse]" />
-          <span className="hero-orb-core w-[62px] h-[62px] rounded-full brand-grad shadow-[0_0_60px_rgba(34,211,238,0.5)] animate-[logo-breathe_4s_ease-in-out_infinite]" />
+          <span className="absolute inset-[-60px] rounded-full bg-[radial-gradient(circle_at_50%_50%,rgba(34,211,238,0.16)_0%,rgba(99,102,241,0.08)_45%,transparent_70%)] blur-[40px] pointer-events-none" />
+          <span className="hero-orb-core w-[70px] h-[70px] rounded-full brand-grad shadow-[0_0_70px_rgba(34,211,238,0.45)] animate-[logo-breathe_4s_ease-in-out_infinite]" />
         </div>
       </section>
 
@@ -110,9 +109,8 @@ export function Dashboard() {
           </div>
         ) : servers.length === 0 ? (
           <div className="card empty-card flex flex-col items-center text-center gap-[10px] p-[52px] p-[24px]">
-            <span className="empty-art relative w-[84px] h-[84px] grid place-items-center rounded-[24px] bg-brand/7 border border-brand/22 mb-[6px]">
+            <span className="empty-art relative w-[84px] h-[84px] grid place-items-center rounded-[24px] bg-[radial-gradient(circle_at_50%_45%,rgba(34,211,238,0.14)_0%,rgba(99,102,241,0.06)_60%,transparent)] border border-brand/22 mb-[6px]">
               <IconServer size={34} className="text-brand" />
-              <span className="empty-art-ring absolute inset-[-10px] rounded-[32px] border-[1px] border-dashed border-brand/22 animate-[spin_18s_linear_infinite]" />
             </span>
             <h3 className="text-[19px] font-bold">No servers yet</h3>
             <p className="max-w-[460px] text-text-2 text-[13.5px]">Nothing has been assigned to your account. An admin can provision a game server and attach it to you — or head to the admin console and create one now.</p>
