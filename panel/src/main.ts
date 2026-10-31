@@ -17,7 +17,7 @@ import {
   verifyPassword,
 } from "./auth.js";
 import { daemonFetch, specFromServer, statuses } from "./daemon.js";
-import { db, getBranding, setBranding, uploadsDir, type Egg, type Nest, type Node, type Server, type User, CUSTOM_EGG_ID } from "./db.js";
+import { db, deleteSetting, getBranding, getSetting, setBranding, setSetting, uploadsDir, type Egg, type Nest, type Node, type Server, type User, CUSTOM_EGG_ID } from "./db.js";
 import { registerFilesBackups } from "./files-backups.js";
 import { startScheduler } from "./scheduler.js";
 import { newTotpSecret, otpauthUri, verifyTotp } from "./totp.js";
@@ -178,27 +178,92 @@ app.get("/api/auth/me", async (req, reply) => {
 
 /* ------------------------------------------------------------ discord oauth */
 
-function discordConfigured(): boolean {
-  return Boolean(process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET);
+interface DiscordConfig { clientId: string; clientSecret: string; redirectEnv?: string }
+
+/** Credentials come from the admin portal (settings table) or .env as fallback
+ *  — so users can wire Discord up entirely from the UI. */
+function discordConfig(): DiscordConfig | null {
+  const clientId = getSetting("discord_client_id") || process.env.DISCORD_CLIENT_ID || "";
+  const clientSecret = getSetting("discord_client_secret") || process.env.DISCORD_CLIENT_SECRET || "";
+  if (!clientId || !clientSecret) return null;
+  return { clientId, clientSecret, redirectEnv: process.env.DISCORD_REDIRECT_URI || "" };
 }
 
+const discordConfigured = (): boolean => discordConfig() !== null;
+
 app.get("/api/auth/discord/status", async () => {
-  return { enabled: discordConfigured() };
+  if (discordConfigured()) {
+    const viaPanel = Boolean(getSetting("discord_client_id"));
+    return { enabled: true, source: viaPanel ? "panel" : "env" };
+  }
+  return { enabled: false, source: "none" };
+});
+
+// Where the redirect URL must point — shown in the admin portal for copy-paste
+// into the Discord developer portal.
+app.get("/api/admin/discord/redirect", async (req, reply) => {
+  if (!requireAdmin(req as Authed, reply)) return;
+  return { redirectUri: `${originOf(req)}/api/auth/discord/callback` };
+});
+
+app.get("/api/admin/discord", async (req, reply) => {
+  if (!requireAdmin(req as Authed, reply)) return;
+  const panelId = getSetting("discord_client_id");
+  const panelSecret = getSetting("discord_client_secret");
+  const envConfig = process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET ? true : false;
+  return {
+    enabled: discordConfigured(),
+    source: panelId ? "panel" : envConfig ? "env" : "none",
+    clientId: panelId || (envConfig ? process.env.DISCORD_CLIENT_ID : ""),
+    secretMask: panelSecret || process.env.DISCORD_CLIENT_SECRET
+      ? "••••••••" + ((panelSecret || process.env.DISCORD_CLIENT_SECRET) as string).slice(-4)
+      : "",
+    hasPanelOverride: Boolean(panelId || panelSecret),
+    redirectUri: `${originOf(req)}/api/auth/discord/callback`,
+  };
+});
+
+// Save (or clear) panel-level credentials. Empty strings clear the override so
+// .env values take over again.
+app.patch("/api/admin/discord", async (req, reply) => {
+  if (!requireAdmin(req as Authed, reply)) return;
+  const body = (req.body ?? {}) as { clientId?: string; clientSecret?: string };
+  const clientId = String(body.clientId ?? "").trim();
+  const clientSecret = String(body.clientSecret ?? "");
+  if (clientId === "" && clientSecret === "") {
+    deleteSetting("discord_client_id");
+    deleteSetting("discord_client_secret");
+  } else {
+    if (!clientId || !/^\d{15,25}$/.test(clientId)) {
+      return reply.status(400).send({ error: "Client ID looks wrong — Discord application IDs are a long number" });
+    }
+    if (!clientSecret || clientSecret.length < 20) {
+      return reply.status(400).send({ error: "Client Secret looks wrong — copy the full secret from the Discord developer portal" });
+    }
+    setSetting("discord_client_id", clientId);
+    setSetting("discord_client_secret", clientSecret);
+  }
+  const fresh = discordConfig();
+  return {
+    enabled: fresh !== null,
+    source: getSetting("discord_client_id") ? "panel" : process.env.DISCORD_CLIENT_ID ? "env" : "none",
+  };
 });
 
 // Start the OAuth flow. If a session is present it links that account,
 // otherwise it is a sign-in attempt resolved by discord_id.
 app.get("/api/auth/discord", async (req, reply) => {
-  if (!discordConfigured()) {
-    return reply.status(501).send({ error: "Discord OAuth is not configured — set DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET in .env" });
+  const dc = discordConfig();
+  if (!dc) {
+    return reply.status(501).send({ error: "Discord OAuth is not configured yet — set it up in the admin portal (or DISCORD_CLIENT_ID/SECRET in .env)" });
   }
   pruneMaps();
   const me = lookupUser(req);
   const state = crypto.randomBytes(24).toString("hex");
   oauthStates.set(state, { userId: me?.id, exp: Date.now() + 10 * 60_000 });
   const params = new URLSearchParams({
-    client_id: process.env.DISCORD_CLIENT_ID!,
-    redirect_uri: process.env.DISCORD_REDIRECT_URI || `${originOf(req)}/api/auth/discord/callback`,
+    client_id: dc.clientId,
+    redirect_uri: dc.redirectEnv || `${originOf(req)}/api/auth/discord/callback`,
     response_type: "code",
     scope: "identify",
     state,
@@ -209,7 +274,8 @@ app.get("/api/auth/discord", async (req, reply) => {
 
 app.get("/api/auth/discord/callback", async (req, reply) => {
   const origin = originOf(req);
-  if (!discordConfigured()) return reply.redirect(`${origin}/login?discord=unconfigured`, 302);
+  const dc0 = discordConfig();
+  if (!dc0) return reply.redirect(`${origin}/login?discord=unconfigured`, 302);
   const q = (req.query ?? {}) as { code?: string; state?: string; error?: string };
   const state = q.state ?? "";
   const entry = oauthStates.get(state);
@@ -222,11 +288,11 @@ app.get("/api/auth/discord/callback", async (req, reply) => {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
-        client_id: process.env.DISCORD_CLIENT_ID!,
-        client_secret: process.env.DISCORD_CLIENT_SECRET!,
+        client_id: dc0.clientId,
+        client_secret: dc0.clientSecret,
         grant_type: "authorization_code",
         code: q.code,
-        redirect_uri: process.env.DISCORD_REDIRECT_URI || `${origin}/api/auth/discord/callback`,
+        redirect_uri: dc0.redirectEnv || `${origin}/api/auth/discord/callback`,
       }),
     });
     if (!tokenRes.ok) return reply.redirect(`${origin}/login?discord=token`, 302);

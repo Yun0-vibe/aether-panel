@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { api, ApiError, useAuth } from "../auth/AuthContext";
 import type { ServerSummary, User } from "../auth/AuthContext";
 import { useToast } from "../components/Toasts";
-import { AetherMark, IconClose, IconPlus, IconUsers, IconLayers, IconServer, IconActivity, IconShield, IconRocket, IconArchive, IconSparkle } from "../components/Icons";
+import { AetherMark, IconClose, IconCopy, IconDiscord, IconPlus, IconUsers, IconLayers, IconServer, IconActivity, IconShield, IconRocket, IconArchive, IconSparkle } from "../components/Icons";
 import { RoleBadge } from "../components/RoleBadge";
 import { ImageDrop } from "../components/ImageDrop";
 import { useBranding } from "../brand/BrandContext";
@@ -431,6 +431,150 @@ function NodeForm({ initial, onSubmit, done }: { initial?: Node; onSubmit: (body
         <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? <span className="btn-spinner" /> : null}{initial ? "Save node" : "Create node"}</button>
       </div>
     </form>
+  );
+}
+
+/* ---------------------------------------------------------------- discord */
+
+interface DiscordAdmin {
+  enabled: boolean;
+  source: "panel" | "env" | "none";
+  clientId: string;
+  secretMask: string;
+  hasPanelOverride: boolean;
+  redirectUri: string;
+}
+
+export function DiscordTab() {
+  const toast = useToast();
+  const [state, setState] = useState<DiscordAdmin | null>(null);
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    api<DiscordAdmin>("/api/admin/discord").then((d) => {
+      setState(d);
+      setClientId((prev) => prev || d.clientId);
+    }).catch(() => toast.pushError("Could not load Discord settings"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(null); setBusy(true);
+    try {
+      const d = await api<{ enabled: boolean; source: string }>("/api/admin/discord", { method: "PATCH", body: { clientId, clientSecret } });
+      setClientSecret("");
+      toast.push(d.enabled ? "Discord sign-in enabled" : "Discord sign-in disabled", d.enabled ? "success" : "success");
+      load();
+    } catch (e2) {
+      setErr(e2 instanceof ApiError ? e2.message : "Save failed");
+    } finally { setBusy(false); }
+  }
+
+  async function useEnv() {
+    setErr(null); setBusy(true);
+    try {
+      await api("/api/admin/discord", { method: "PATCH", body: { clientId: "", clientSecret: "" } });
+      setClientId("");
+      toast.push("Reverted to .env credentials", "success");
+      load();
+    } catch (e2) {
+      setErr(e2 instanceof ApiError ? e2.message : "Reset failed");
+    } finally { setBusy(false); }
+  }
+
+  async function copyRedirect() {
+    if (!state) return;
+    try {
+      await navigator.clipboard.writeText(state.redirectUri);
+      toast.push("Redirect URI copied", "success");
+    } catch {
+      toast.pushError("Clipboard blocked by the browser");
+    }
+  }
+
+  return (
+    <div className="rise flex flex-col gap-[18px]">
+      <PageHead title="Discord sign-in" sub="Let users link their Discord account and sign in with it — configured right here, no .env editing needed." />
+
+      <div className="grid grid-cols-1 items-start gap-[18px] lg:grid-cols-[1fr_360px]">
+        <section className="card">
+          <div className="mb-[16px] flex items-center justify-between gap-[10px]">
+            <div className="flex items-center gap-[10px]">
+              <span className="grid h-[34px] w-[34px] flex-none place-items-center rounded-[10px] border border-[rgba(88,101,242,0.4)] bg-[rgba(88,101,242,0.14)] text-[#aab4ff]"><IconDiscord size={17} /></span>
+              <div>
+                <h3 className="text-[15px] font-bold">OAuth application</h3>
+                <p className="text-[11.5px] text-text-3">Client ID + Secret from the Discord developer portal.</p>
+              </div>
+            </div>
+            {state && (
+              <span className={`inline-flex items-center gap-[7px] rounded-full border px-[11px] py-[4px] text-[11px] font-bold ${
+                state.enabled
+                  ? "border-green/30 bg-[rgba(52,211,153,0.1)] text-green-400"
+                  : "border-yellow-500/30 bg-[rgba(250,204,21,0.08)] text-yellow-300"
+              }`}>
+                <span className={`h-[7px] w-[7px] rounded-full ${state.enabled ? "bg-green-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]" : "bg-yellow-400"}`} />
+                {state.enabled ? "Live" : "Not configured"}
+                {state.source === "panel" ? " · saved here" : state.source === "env" ? " · from .env" : ""}
+              </span>
+            )}
+          </div>
+
+          <form onSubmit={save} className="flex flex-col gap-[14px]">
+            <label className="flex flex-col gap-[7px]">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Client ID</span>
+              <input className={FIELD + " font-mono !text-[13px]"} value={clientId} onChange={(e) => setClientId(e.target.value.trim())} placeholder="e.g. 1234567890123456789" autoComplete="off" />
+            </label>
+            <label className="flex flex-col gap-[7px]">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Client secret{state?.secretMask ? " — stored, leave blank to keep" : ""}</span>
+              <input className={FIELD + " font-mono !text-[13px]"} type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} placeholder={state?.secretMask || "Paste the client secret"} autoComplete="new-password" />
+            </label>
+            {state?.secretMask && (
+              <p className="text-[11px] text-text-3">Current secret: <span className="font-mono">{state.secretMask}</span></p>
+            )}
+            {err && <div className="rounded-lg border border-red-500/30 bg-[rgba(248,113,113,0.1)] px-[13px] py-[10px] text-[12.5px] text-red-400">{err}</div>}
+            <div className="flex flex-wrap justify-end gap-[9px]">
+              {state?.hasPanelOverride && (
+                <button type="button" className="btn btn-ghost" onClick={() => void useEnv()} disabled={busy}>Use .env instead</button>
+              )}
+              <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? <span className="btn-spinner" /> : null} Save & enable</button>
+            </div>
+          </form>
+        </section>
+
+        <aside className="card flex flex-col gap-[14px] self-start">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Setup — 3 steps</span>
+          <ol className="flex flex-col gap-[12px] text-[12.5px] leading-[1.6] text-text-2">
+            <li className="flex gap-[10px]">
+              <span className="grid h-[20px] w-[20px] flex-none place-items-center rounded-full border border-brand/35 bg-brand/10 text-[9.5px] font-black text-brand">1</span>
+              <span>Create an app at <b className="text-white">discord.com/developers</b> → <b className="text-white">OAuth2</b>.</span>
+            </li>
+            <li className="flex gap-[10px]">
+              <span className="grid h-[20px] w-[20px] flex-none place-items-center rounded-full border border-brand/35 bg-brand/10 text-[9.5px] font-black text-brand">2</span>
+              <span className="min-w-0">
+                Add this redirect URI there (click to copy):
+                <button type="button" onClick={() => void copyRedirect()} className="mono mt-[7px] flex w-full items-center gap-[8px] break-all rounded-lg border border-border bg-[rgba(0,0,0,0.3)] px-[10px] py-[7px] text-left text-[11.5px] text-text-2 transition-all duration-150 hover:border-brand/60 hover:text-brand" title="Click to copy">
+                  <IconCopy size={13} className="flex-none text-text-3" />
+                  <span className="min-w-0 flex-1 break-all">{state?.redirectUri ?? "…"}</span>
+                </button>
+              </span>
+            </li>
+            <li className="flex gap-[10px]">
+              <span className="grid h-[20px] w-[20px] flex-none place-items-center rounded-full border border-brand/35 bg-brand/10 text-[9.5px] font-black text-brand">3</span>
+              <span>Paste the Client ID & Secret here and save — the sign-in buttons appear instantly on login and profile.</span>
+            </li>
+          </ol>
+          <p className="rounded-xl border border-border bg-white/3 px-[13px] py-[10px] text-[11px] leading-[1.55] text-text-3">
+            Secrets are stored server-side in the panel database and never sent back in full — you'll only ever see the last 4 characters after saving.
+          </p>
+        </aside>
+      </div>
+    </div>
   );
 }
 

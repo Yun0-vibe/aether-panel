@@ -447,3 +447,17 @@ export function setBranding(patch: Partial<Record<keyof Branding, string>>): Bra
   for (const [k, v] of Object.entries(clean)) upsert.run(k, v);
   return getBranding();
 }
+
+/** Generic key/value settings for things like OAuth credentials. */
+export function getSetting(key: string): string {
+  const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(key) as { value: string } | undefined;
+  return row?.value ?? "";
+}
+
+export function setSetting(key: string, value: string): void {
+  db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(key, value);
+}
+
+export function deleteSetting(key: string): void {
+  db.prepare("DELETE FROM settings WHERE key = ?").run(key);
+}

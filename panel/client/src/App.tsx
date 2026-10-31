@@ -12,7 +12,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { ServersPage } from "./pages/Servers";
 import { ServerDetail } from "./pages/ServerDetail";
 import { ServerWizard } from "./pages/ServerWizard";
-import { AdminOverview, BrandingTab, EggsTab, NodesTab, ServersTab, UsersTab } from "./pages/Admin";
+import { AdminOverview, BrandingTab, DiscordTab, EggsTab, NodesTab, ServersTab, UsersTab } from "./pages/Admin";
 import { BrandProvider } from "./brand/BrandContext";
 
 export default function App() {
@@ -112,6 +112,16 @@ export default function App() {
                 <RequireAdmin>
                   <AdminShell>
                     <BrandingTab />
+                  </AdminShell>
+                </RequireAdmin>
+              }
+            />
+            <Route
+              path="/admin/discord"
+              element={
+                <RequireAdmin>
+                  <AdminShell>
+                    <DiscordTab />
                   </AdminShell>
                 </RequireAdmin>
               }

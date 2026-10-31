@@ -6,6 +6,7 @@ import { RoleBadge } from "./RoleBadge";
 import {
   AetherMark,
   IconClose,
+  IconDiscord,
   IconGrid,
   IconLayers,
   IconLogout,
@@ -22,6 +23,7 @@ const META: Record<string, { title: string; sub: string }> = {
   "/admin/nodes": { title: "Nodes", sub: "Machines running your daemons" },
   "/admin/eggs": { title: "Eggs & nests", sub: "Game presets for the creation wizard" },
   "/admin/branding": { title: "Branding", sub: "Panel name, logo and favicon" },
+  "/admin/discord": { title: "Discord sign-in", sub: "OAuth credentials and setup" },
   "/admin/servers": { title: "Servers", sub: "Every provisioned game server" },
 };
 
@@ -102,6 +104,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <NavLink to="/admin/branding" className={linkCls} onClick={() => setNavOpen(false)}>
             <IconSparkle size={18} className="flex-none opacity-80" />
             <span>Branding</span>
+          </NavLink>
+          <NavLink to="/admin/discord" className={linkCls} onClick={() => setNavOpen(false)}>
+            <IconDiscord size={18} className="flex-none opacity-80" />
+            <span>Discord</span>
           </NavLink>
           <NavLink to="/admin/servers" className={linkCls} onClick={() => setNavOpen(false)}>
             <IconServer size={18} className="flex-none opacity-80" />

@@ -164,51 +164,43 @@ export function RegisterPage() {
 function AuthShell({ children, eyebrow, title, sub }: { children: React.ReactNode; eyebrow: string; title: string; sub: string }) {
   const { branding } = useBranding();
   return (
-    <div className="auth-wrap relative min-h-screen overflow-hidden grid grid-cols-[1.05fr_0.95fr]">
-      <div className="auth-aurora absolute inset-0 pointer-events-none">
-        <span className="blob blob-a absolute rounded-full blur-[110px] w-[560px] h-[560px] top-[-160px] left-[-100px] bg-[radial-gradient(circle,rgba(34,211,238,0.32)_0%,transparent_68%)] animate-[float1_20s_ease-in-out_infinite_alternate]" />
-        <span className="blob blob-b absolute rounded-full blur-[110px] w-[520px] h-[520px] bottom-[-180px] left-[30%] bg-[radial-gradient(circle,rgba(168,85,247,0.28)_0%,transparent_68%)] animate-[float2_26s_ease-in-out_infinite_alternate]" />
-        <span className="blob blob-c absolute rounded-full blur-[110px] w-[420px] h-[420px] top-[30%] right-[-120px] bg-[radial-gradient(circle,rgba(59,130,246,0.26)_0%,transparent_70%)] animate-[float3_30s_ease-in-out_infinite_alternate]" />
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 py-10">
+      {/* ambience */}
+      <div className="absolute inset-0 pointer-events-none">
+        <span className="absolute rounded-full blur-[130px] w-[620px] h-[620px] top-[-220px] left-[8%] bg-[radial-gradient(circle,rgba(34,211,238,0.17)_0%,transparent_70%)]" />
+        <span className="absolute rounded-full blur-[130px] w-[520px] h-[520px] bottom-[-200px] right-[4%] bg-[radial-gradient(circle,rgba(168,85,247,0.15)_0%,transparent_70%)]" />
+        <span className="absolute inset-0 bg-[linear-gradient(rgba(120,165,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(120,165,255,0.035)_1px,transparent_1px)] bg-[size:44px_44px] [mask-image:radial-gradient(ellipse_at_center,black_0%,transparent_75%)]" />
       </div>
 
-      <section className="auth-brand relative z-1 flex flex-col justify-between gap-[34px] p-[52px] p-[56px] border-r border-border bg-gradient-to-b from-[rgba(8,12,22,0.72)] to-[rgba(10,15,29,0.42)] backdrop-blur-[6px] -webkit-backdrop-blur-[6px]">
-        <div>
-          <Link to="/" className="auth-brand-lockup inline-flex items-center gap-[13px] w-fit">
-            {branding.logoUrl ? (
-              <img src={branding.logoUrl} alt="" className="h-11 w-11 flex-none rounded-[13px] object-contain filter-drop-shadow-[0_0_18px_rgba(34,211,238,0.45)]" />
-            ) : (
-              <AetherMark size={44} className="flex-none filter-drop-shadow-[0_0_18px_rgba(34,211,238,0.45)]" />
-            )}
-            <span className="auth-brand-words flex flex-col leading-[1.1]">
-              <span className="trunc font-display text-[18px] font-bold tracking-[0.2em] brand-grad grad-text">{branding.panelName.toUpperCase().split(/\s+/)[0]}</span>
-              <span className="trunc mt-[4px] text-[9px] font-bold tracking-[0.3em] text-text-3">{branding.tagline ? branding.tagline.toUpperCase().slice(0, 26) : "CONTROL PANEL"}</span>
+      <div className="relative z-1 flex w-full max-w-[420px] flex-col items-center">
+        {/* brand header */}
+        <div className="mb-[26px] flex flex-col items-center gap-[12px] text-center">
+          {branding.logoUrl ? (
+            <img src={branding.logoUrl} alt="" className="h-[56px] w-[56px] rounded-[16px] object-contain shadow-[0_10px_40px_-10px_rgba(34,211,238,0.55)]" />
+          ) : (
+            <AetherMark size={56} className="drop-shadow-[0_0_22px_rgba(34,211,238,0.5)]" />
+          )}
+          <div className="flex flex-col items-center leading-[1.1]">
+            <span className="text-[17px] font-black tracking-[0.14em] brand-grad grad-text">{branding.panelName.toUpperCase()}</span>
+            <span className="mt-[5px] text-[8.5px] font-bold tracking-[0.3em] text-text-3">
+              {branding.tagline ? branding.tagline.toUpperCase() : "CONTROL PANEL"}
             </span>
-          </Link>
-          <div className="auth-brand-copy mt-[18px] max-w-[520px]">
-            <span className="hero-eyebrow inline-flex items-center gap-[7px] px-[11px] py-[5px] rounded-full border border-brand/22 bg-brand/9 text-[10.5px] font-black tracking-wider uppercase text-sky-300">Game server orchestration</span>
-            <h2 className="auth-tagline mt-[16px] text-[clamp(32px,4.4vw,54px)] font-black tracking-[-0.04em] leading-[1.05] brand-grad grad-text">{title}</h2>
-            <p className="auth-sub mt-[16px] max-w-[460px] text-[15px] text-text-2 leading-[1.7]">{sub}</p>
-          </div>
-          <ul className="auth-features flex flex-col gap-[11px]">
-            <li className="flex items-center gap-[12px] text-[13.5px] font-medium text-text-2"><span className="auth-feature-icon flex-none w-[32px] h-[32px] grid place-items-center rounded-[10px] text-brand bg-brand/9 border border-brand/22"><IconActivity size={16} className="flex-none" /></span>Live console streaming with full power control</li>
-            <li className="flex items-center gap-[12px] text-[13.5px] font-medium text-text-2"><span className="auth-feature-icon flex-none w-[32px] h-[32px] grid place-items-center rounded-[10px] text-brand bg-brand/9 border border-brand/22"><IconServer size={16} className="flex-none" /></span>Multi-node provisioning with isolated containers</li>
-            <li className="flex items-center gap-[12px] text-[13.5px] font-medium text-text-2"><span className="auth-feature-icon flex-none w-[32px] h-[32px] grid place-items-center rounded-[10px] text-brand bg-brand/9 border border-brand/22"><IconShield size={16} className="flex-none" /></span>Role-based access, file manager and one-click backups</li>
-          </ul>
-          <div className="auth-brand-foot flex w-fit gap-10 rounded-2xl border border-border bg-white/3 px-7 py-5 backdrop-blur-sm">
-            <span className="auth-stat flex flex-col gap-[3px]"><strong className="font-display text-[21px] font-bold text-white">99.9%</strong><span className="text-[10.5px] font-bold tracking-[0.13em] uppercase text-text-3">uptime target</span></span>
-            <span className="auth-stat flex flex-col gap-[3px]"><strong className="font-display text-[21px] font-bold text-white">&lt;50ms</strong><span className="text-[10.5px] font-bold tracking-[0.13em] uppercase text-text-3">console latency</span></span>
-            <span className="auth-stat flex flex-col gap-[3px]"><strong className="font-display text-[21px] font-bold text-white">24/7</strong><span className="text-[10.5px] font-bold tracking-[0.13em] uppercase text-text-3">autonomous ops</span></span>
           </div>
         </div>
-      </section>
 
-      <section className="auth-panel relative z-1 flex flex-col items-center justify-center gap-[20px] bg-[radial-gradient(900px_520px_at_70%_115%,rgba(59,130,246,0.10)_0%,transparent_62%),radial-gradient(700px_460px_at_20%_-10%,rgba(168,85,247,0.08)_0%,transparent_60%)] bg-gradient-to-b from-[rgba(8,12,22,0.42)] to-[rgba(3,6,14,0.92)] p-8 md:p-12">
-        <div className="auth-card w-full max-w-[408px] p-[32px] rounded-[24px] bg-[rgba(13,19,34,0.72)] backdrop-blur-[26px] -webkit-backdrop-blur-[26px] border border-white/12 shadow-[0_40px_80px_-40px_rgba(0,0,0,0.95)] animate-[fade-up_560ms_var(--ease)_both]">
-          <span className="auth-eyebrow block mb-[20px] text-[10.5px] font-bold tracking-[0.2em] uppercase text-brand">{eyebrow}</span>
+        {/* card */}
+        <div className="w-full rounded-[22px] border border-white/10 bg-[rgba(11,16,29,0.82)] p-[26px] backdrop-blur-[24px] shadow-[0_40px_90px_-30px_rgba(0,0,0,0.9)] animate-[fade-up_520ms_var(--ease)_both] sm:p-[30px]">
+          <div className="mb-[20px] text-center">
+            <h1 className="text-[19px] font-bold text-white">{title}</h1>
+            <p className="mt-[6px] text-[12.5px] leading-[1.55] text-text-2">{sub}</p>
+          </div>
           {children}
         </div>
-        <p className="auth-legal text-[11px] text-text-3 tracking-[0.04em]">{branding.panelName} — {branding.tagline}</p>
-      </section>
+
+        <p className="mt-[22px] text-center text-[10.5px] tracking-[0.04em] text-text-3">
+          © {new Date().getFullYear()} {branding.panelName} · {eyebrow}
+        </p>
+      </div>
     </div>
   );
 }
