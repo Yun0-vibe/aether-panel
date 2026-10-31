@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError, useAuth } from "../auth/AuthContext";
 import type { ServerSummary, User } from "../auth/AuthContext";
 import { useToast } from "../components/Toasts";
-import { IconClose, IconPlus, IconUsers, IconLayers, IconServer, IconActivity, IconZap, IconShield, IconRocket } from "../components/Icons";
+import { IconClose, IconPlus, IconUsers, IconLayers, IconServer, IconActivity, IconZap, IconShield, IconRocket, IconArchive } from "../components/Icons";
 import { RoleBadge } from "../components/RoleBadge";
 
 type AdminUser = User;
@@ -60,6 +60,7 @@ export function AdminOverview() {
 
       <section className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-[14px]">
         <QuickCard to="/admin/servers/new" icon={<IconRocket size={20} className="flex-none" />} title="Create server" sub="Wizard with game presets" />
+        <QuickCard to="/admin/eggs" icon={<IconArchive size={20} className="flex-none" />} title="Eggs & nests" sub="Game presets for the wizard" />
         <QuickCard to="/admin/users" icon={<IconUsers size={20} className="flex-none" />} title="Manage users" sub="Create, promote or remove accounts" />
         <QuickCard to="/admin/nodes" icon={<IconLayers size={20} className="flex-none" />} title="Manage nodes" sub="Register daemon machines" />
         <QuickCard to="/admin/servers" icon={<IconServer size={20} className="flex-none" />} title="Manage servers" sub="Provision and assign game servers" />
@@ -311,8 +312,7 @@ export function NodesTab() {
   );
 }
 
-function NodeForm({ initial, onSubmit, done }: { initial?: Node; onSubmit: (body: Partial<Node>) => void | Promise<void>; done: () => void; }) {
-  const [name, setName] = useState(initial?.name ?? "");
+function NodeForm({ initial, onSubmit, done }: { initial?: Node; onSubmit: (body: Partial<Node>) => void | Promise<void>; done: () => void; }) {  const [name, setName] = useState(initial?.name ?? "");
   const [host, setHost] = useState(initial?.host ?? "");
   const [daemonPort, setDaemonPort] = useState(initial?.daemonPort ?? 8080);
   const [token, setToken] = useState(initial?.token ?? "");
@@ -437,6 +437,271 @@ function ServerForm({ initial, onSubmit, done, users, nodes }: { initial?: Admin
       <div className="mt-[4px] flex justify-end gap-[9px]">
         <button type="button" className="btn btn-ghost" onClick={done}>Cancel</button>
         <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? <span className="btn-spinner" /> : null}{initial ? "Save server" : "Create server"}</button>
+      </div>
+    </form>
+  );
+}
+
+// ---------------------------------------------------------------- eggs & nests
+
+interface AdminNest { id: string; name: string; sort: number; eggCount: number }
+interface AdminEgg {
+  id: string;
+  name: string;
+  description: string;
+  image: string;
+  ports: EggPort[];
+  env: Record<string, string>;
+  memoryMB: number;
+  cpus: number;
+  sort?: number;
+  nestId: string;
+  nestName: string | null;
+}
+
+const ENV_FIELD =
+  "w-full min-h-[120px] resize-y rounded-lg border border-border bg-[rgba(0,0,0,0.26)] px-[13px] py-[10px] font-mono text-[12.5px] leading-[1.7] text-white outline-none transition-all duration-150 focus:border-brand/60";
+
+/** "25565/tcp, 19132/udp" -> [{port, protocol}] */
+export function parsePortsText(text: string): EggPort[] {
+  return text
+    .split(/[,\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => {
+      const [port, proto = "tcp"] = s.split("/");
+      return { port: Number(port), protocol: proto.trim().toLowerCase() || "tcp" };
+    })
+    .filter((p) => Number.isInteger(Number(p.port)) && p.port > 0 && p.port <= 65535 && ["tcp", "udp"].includes(p.protocol));
+}
+
+/** "KEY=VALUE" lines -> object */
+export function parseEnvText(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of text.split("\n")) {
+    const idx = line.indexOf("=");
+    if (idx <= 0) continue;
+    const key = line.slice(0, idx).trim();
+    const value = line.slice(idx + 1).trim();
+    if (key) out[key] = value;
+  }
+  return out;
+}
+
+export function EggsTab() {
+  const toast = useToast();
+  const [eggs, setEggs] = useState<AdminEgg[] | null>(null);
+  const [nests, setNests] = useState<AdminNest[] | null>(null);
+  const [eggModal, setEggModal] = useState<{ egg?: AdminEgg; nestId?: string } | null>(null);
+  const [nestModal, setNestModal] = useState<AdminNest | "new" | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const [e, n] = await Promise.all([
+        api<{ eggs?: AdminEgg[] }>("/api/admin/eggs"),
+        api<{ nests?: AdminNest[] }>("/api/admin/nests"),
+      ]);
+      setEgs(e.eggs ?? []);
+      setNests(n.nests ?? []);
+    } catch (err) { toast.pushError(err); }
+  }, [toast]);
+  useEffect(() => { void load(); }, [load]);
+  function setEgs(list: AdminEgg[]) { setEggs(list); }
+
+  async function delEgg(egg: AdminEgg) {
+    if (!window.confirm(`Delete preset "${egg.name}"? Servers already created keep their image.`)) return;
+    try { await api(`/api/admin/eggs/${encodeURIComponent(egg.id)}`, { method: "DELETE" }); toast.push("Egg deleted", "success"); void load(); }
+    catch (err) { toast.pushError(err); }
+  }
+
+  async function delNest(nest: AdminNest) {
+    if (!window.confirm(`Delete nest "${nest.name}"?`)) return;
+    try { await api(`/api/admin/nests/${encodeURIComponent(nest.id)}`, { method: "DELETE" }); toast.push("Nest deleted", "success"); void load(); }
+    catch (err) { toast.pushError(err instanceof ApiError ? err.message : "Failed — the nest may still have eggs"); }
+  }
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, AdminEgg[]>();
+    for (const e of eggs ?? []) {
+      const list = map.get(e.nestId || "game-servers") ?? [];
+      list.push(e);
+      map.set(e.nestId || "game-servers", list);
+    }
+    return nests?.map((n) => ({ nest: n, eggs: map.get(n.id) ?? [] })) ?? [];
+  }, [eggs, nests]);
+
+  return (
+    <div className="flex flex-col gap-[18px]">
+      <PageHead title="Eggs & nests" sub="Game presets offered in the server creation wizard." />
+      <div className="card overflow-hidden p-0">
+        <div className="flex items-center justify-between border-b border-border bg-white/1 px-[15px] py-[13px]">
+          <span className="text-[12.5px] font-bold text-text-2">{eggs?.length ?? 0} presets · {nests?.length ?? 0} nests</span>
+          <div className="flex gap-[8px]">
+            <button className="btn btn-ghost btn-sm" onClick={() => setNestModal("new")}><IconPlus size={15} className="flex-none" /> New nest</button>
+            <button className="btn btn-primary btn-sm" onClick={() => setEggModal({ nestId: nests?.[0]?.id })}><IconPlus size={15} className="flex-none" /> New egg</button>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-[20px] p-[15px]">
+          {eggs === null && <div className="py-8 text-center text-[13px] text-text-3">Loading presets…</div>}
+          {grouped.map(({ nest, eggs: list }) => (
+            <section key={nest.id} className="flex flex-col gap-[10px]">
+              <div className="flex items-center gap-[10px] border-b border-border pb-[9px]">
+                <IconLayers size={15} className="flex-none text-fuchsia-300" />
+                <h3 className="text-[14px] font-bold">{nest.name}</h3>
+                <span className="rounded-full border border-border bg-white/4 px-[8px] py-[2px] text-[10px] font-bold text-text-3">{list.length} egg{list.length === 1 ? "" : "s"}</span>
+                <div className="ml-auto flex gap-[6px]">
+                  <button className="btn btn-ghost btn-sm" onClick={() => setNestModal(nest)}>Rename</button>
+                  <button className="btn btn-red btn-sm" onClick={() => void delNest(nest)}>Delete</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setEggModal({ nestId: nest.id })}><IconPlus size={14} className="flex-none" /> Egg</button>
+                </div>
+              </div>
+              {list.length === 0 ? (
+                <p className="text-[12px] text-text-3">No presets in this nest yet.</p>
+              ) : (
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(270px,1fr))] gap-[12px]">
+                  {list.map((egg) => (
+                    <article key={egg.id} className="flex flex-col gap-[8px] rounded-[16px] border border-border bg-surface-2 p-[15px] transition-all duration-200 hover:border-fuchsia-400/40 hover:-translate-y-[2px]">
+                      <div className="flex items-center justify-between gap-[8px]">
+                        <h4 className="trunc text-[14.5px] font-bold">{egg.name}</h4>
+                        <div className="flex flex-none gap-[5px]">
+                          <button className="btn btn-ghost btn-sm !px-2" onClick={() => setEggModal({ egg })} aria-label={`Edit ${egg.name}`}>Edit</button>
+                          <button className="btn btn-red btn-sm !px-2" onClick={() => void delEgg(egg)} aria-label={`Delete ${egg.name}`}>✕</button>
+                        </div>
+                      </div>
+                      <span className="mono trunc rounded-lg border border-border bg-[rgba(0,0,0,0.3)] px-[9px] py-[4px] text-[11px] text-text-3" title={egg.image}>{egg.image}</span>
+                      <p className="min-h-[32px] text-[11.5px] leading-[1.5] text-text-2">{egg.description || "No description"}</p>
+                      <div className="flex flex-wrap gap-[4px] text-[10.5px] font-bold text-text-3">
+                        <span className="rounded-[4px] border border-border bg-white/4 px-[6px] py-[2px]">{egg.memoryMB} MB</span>
+                        <span className="rounded-[4px] border border-border bg-white/4 px-[6px] py-[2px]">{egg.cpus} vCPU</span>
+                        {(egg.ports ?? []).slice(0, 3).map((p) => (
+                          <span key={`${p.port}-${p.protocol}`} className="rounded-[4px] border border-border bg-white/4 px-[6px] py-[2px]">{p.port}/{p.protocol}</span>
+                        ))}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          ))}
+        </div>
+      </div>
+
+      {eggModal && (
+        <Modal title={eggModal.egg ? `Edit ${eggModal.egg.name}` : "New egg"} onClose={() => setEggModal(null)}>
+          <EggForm
+            initial={eggModal.egg}
+            defaultNestId={eggModal.nestId ?? nests?.[0]?.id}
+            nests={nests ?? []}
+            onSubmit={async (body) => {
+              if (eggModal.egg) await api(`/api/admin/eggs/${encodeURIComponent(eggModal.egg.id)}`, { method: "PATCH", body });
+              else await api("/api/admin/eggs", { method: "POST", body });
+              toast.push(eggModal.egg ? "Egg updated" : "Egg created", "success");
+            }}
+            done={() => { setEggModal(null); void load(); }}
+          />
+        </Modal>
+      )}
+      {nestModal && (
+        <Modal title={nestModal === "new" ? "New nest" : `Rename ${nestModal.name}`} onClose={() => setNestModal(null)}>
+          <NestForm
+            initial={nestModal === "new" ? undefined : nestModal}
+            onSubmit={async (body) => {
+              if (nestModal === "new") await api("/api/admin/nests", { method: "POST", body });
+              else await api(`/api/admin/nests/${encodeURIComponent(nestModal.id)}`, { method: "PATCH", body });
+              toast.push(nestModal === "new" ? "Nest created" : "Nest renamed", "success");
+            }}
+            done={() => { setNestModal(null); void load(); }}
+          />
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function EggForm({ initial, defaultNestId, nests, onSubmit, done }: {
+  initial?: AdminEgg;
+  defaultNestId?: string;
+  nests: AdminNest[];
+  onSubmit: (body: Record<string, unknown>) => void | Promise<void>;
+  done: () => void;
+}) {
+  const [name, setName] = useState(initial?.name ?? "");
+  const [image, setImage] = useState(initial?.image ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
+  const [nestId, setNestId] = useState(initial?.nestId ?? defaultNestId ?? "");
+  const [memoryMB, setMemoryMB] = useState(String(initial?.memoryMB ?? 2048));
+  const [cpus, setCpus] = useState(String(initial?.cpus ?? 1));
+  const [sort, setSort] = useState(String(initial?.sort ?? 100));
+  const [portsText, setPortsText] = useState((initial?.ports ?? []).map((p) => `${p.port}/${p.protocol}`).join(", "));
+  const [envText, setEnvText] = useState(Object.entries(initial?.env ?? {}).map(([k, v]) => `${k}=${v}`).join("\n"));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(null); setBusy(true);
+    try {
+      await onSubmit({
+        name, image, description, nestId,
+        memoryMB: Number(memoryMB) || 2048,
+        cpus: Number(cpus) || 1,
+        sort: Number(sort) || 100,
+        ports: parsePortsText(portsText),
+        env: parseEnvText(envText),
+      });
+      done();
+    } catch (err) {
+      setErr(err instanceof ApiError ? err.message : "Failed to save egg");
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-[14px]">
+      <div className="grid grid-cols-1 gap-[12px] sm:grid-cols-2">
+        <label className="flex flex-col gap-[7px]"><span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Preset name</span><input className={FIELD} value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. Minecraft Paper" /></label>
+        <label className="flex flex-col gap-[7px]"><span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Nest</span><select className={FIELD} value={nestId} onChange={(e) => setNestId(e.target.value)} required>{nests.map((n) => (<option key={n.id} value={n.id}>{n.name}</option>))}</select></label>
+      </div>
+      <label className="flex flex-col gap-[7px]"><span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Docker image</span><input className={FIELD + " font-mono !text-[12.5px]"} value={image} onChange={(e) => setImage(e.target.value)} required placeholder="itzg/minecraft-server" /></label>
+      <label className="flex flex-col gap-[7px]"><span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Description</span><input className={FIELD} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Short description shown in the wizard" /></label>
+      <div className="grid grid-cols-3 gap-[12px]">
+        <label className="flex flex-col gap-[7px]"><span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Memory (MB)</span><input className={FIELD} type="number" min={128} value={memoryMB} onChange={(e) => setMemoryMB(e.target.value)} /></label>
+        <label className="flex flex-col gap-[7px]"><span className="text-[11px] font-bold uppercase tracking-wider text-text-3">vCPUs</span><input className={FIELD} type="number" min={0.5} step={0.5} value={cpus} onChange={(e) => setCpus(e.target.value)} /></label>
+        <label className="flex flex-col gap-[7px]"><span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Sort order</span><input className={FIELD} type="number" value={sort} onChange={(e) => setSort(e.target.value)} /></label>
+      </div>
+      <label className="flex flex-col gap-[7px]"><span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Ports</span><input className={FIELD + " font-mono !text-[12.5px]"} value={portsText} onChange={(e) => setPortsText(e.target.value)} placeholder="25565/tcp, 19132/udp" /><span className="text-[11px] text-text-3">Comma-separated port/protocol list.</span></label>
+      <label className="flex flex-col gap-[7px]"><span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Environment variables</span><textarea className={ENV_FIELD} value={envText} onChange={(e) => setEnvText(e.target.value)} placeholder={"EULA=TRUE\nTYPE=PAPER"} /><span className="text-[11px] text-text-3">One KEY=VALUE per line; merged with user input at creation.</span></label>
+      {err && <FormErrorInline msg={err} />}
+      <div className="mt-[2px] flex justify-end gap-[9px]">
+        <button type="button" className="btn btn-ghost" onClick={done}>Cancel</button>
+        <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? <span className="btn-spinner" /> : null}{initial ? "Save egg" : "Create egg"}</button>
+      </div>
+    </form>
+  );
+}
+
+function FormErrorInline({ msg }: { msg: string }) {
+  return <div className="flex items-center gap-[8px] rounded-lg border border-red-500/30 bg-[rgba(248,113,113,0.1)] px-[13px] py-[10px] text-[12.5px] text-red-400">{msg}</div>;
+}
+
+function NestForm({ initial, onSubmit, done }: { initial?: AdminNest; onSubmit: (body: { name: string }) => void | Promise<void>; done: () => void; }) {
+  const [name, setName] = useState(initial?.name ?? "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(null); setBusy(true);
+    try { await onSubmit({ name }); done(); }
+    catch (e2) { setErr(e2 instanceof ApiError ? e2.message : "Failed to save nest"); }
+    finally { setBusy(false); }
+  }
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-[14px]">
+      <label className="flex flex-col gap-[7px]"><span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Nest name</span><input className={FIELD} value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. Minecraft" /></label>
+      {err && <FormErrorInline msg={err} />}
+      <div className="flex justify-end gap-[9px]">
+        <button type="button" className="btn btn-ghost" onClick={done}>Cancel</button>
+        <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? <span className="btn-spinner" /> : null}{initial ? "Rename nest" : "Create nest"}</button>
       </div>
     </form>
   );

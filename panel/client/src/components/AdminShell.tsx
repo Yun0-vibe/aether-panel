@@ -10,12 +10,14 @@ import {
   IconLogout,
   IconServer,
   IconUsers,
+  IconArchive,
 } from "./Icons";
 
 const META: Record<string, { title: string; sub: string }> = {
   "/admin": { title: "Admin overview", sub: "Health of the whole panel" },
   "/admin/users": { title: "Users", sub: "Accounts, roles and access" },
   "/admin/nodes": { title: "Nodes", sub: "Machines running your daemons" },
+  "/admin/eggs": { title: "Eggs & nests", sub: "Game presets for the creation wizard" },
   "/admin/servers": { title: "Servers", sub: "Every provisioned game server" },
 };
 
@@ -84,6 +86,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <NavLink to="/admin/nodes" className={linkCls} onClick={() => setNavOpen(false)}>
             <IconLayers size={18} className="flex-none opacity-80" />
             <span>Nodes</span>
+          </NavLink>
+          <NavLink to="/admin/eggs" className={linkCls} onClick={() => setNavOpen(false)}>
+            <IconArchive size={18} className="flex-none opacity-80" />
+            <span>Eggs &amp; nests</span>
           </NavLink>
           <NavLink to="/admin/servers" className={linkCls} onClick={() => setNavOpen(false)}>
             <IconServer size={18} className="flex-none opacity-80" />

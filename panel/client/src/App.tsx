@@ -12,7 +12,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { ServersPage } from "./pages/Servers";
 import { ServerDetail } from "./pages/ServerDetail";
 import { ServerWizard } from "./pages/ServerWizard";
-import { AdminOverview, NodesTab, ServersTab, UsersTab } from "./pages/Admin";
+import { AdminOverview, EggsTab, NodesTab, ServersTab, UsersTab } from "./pages/Admin";
 
 export default function App() {
   const [navOpen, setNavOpen] = useState(false);
@@ -90,6 +90,16 @@ export default function App() {
                 <RequireAdmin>
                   <AdminShell>
                     <NodesTab />
+                  </AdminShell>
+                </RequireAdmin>
+              }
+            />
+            <Route
+              path="/admin/eggs"
+              element={
+                <RequireAdmin>
+                  <AdminShell>
+                    <EggsTab />
                   </AdminShell>
                 </RequireAdmin>
               }
