@@ -17,7 +17,7 @@ import {
   verifyPassword,
 } from "./auth.js";
 import { daemonFetch, specFromServer, statuses } from "./daemon.js";
-import { db, type Egg, type Node, type Server, type User, CUSTOM_EGG_ID } from "./db.js";
+import { db, type Egg, type Nest, type Node, type Server, type User, CUSTOM_EGG_ID } from "./db.js";
 import { registerFilesBackups } from "./files-backups.js";
 import { startScheduler } from "./scheduler.js";
 
@@ -400,21 +400,158 @@ app.delete("/api/admin/nodes/:nid", async (req, reply) => {
   return { deleted: nid };
 });
 
+// Shared egg/nest read + field parsing for the admin CRUD routes.
+function eggView(e: Egg) {
+  return {
+    id: e.id,
+    name: e.name,
+    description: e.description,
+    image: e.image,
+    ports: JSON.parse(e.ports || "[]"),
+    env: JSON.parse(e.env || "{}"),
+    memoryMB: e.memory_mb,
+    cpus: e.cpus,
+    sort: e.sort,
+    nestId: e.nest_id ?? "",
+    nestName: e.nest_id
+      ? (db.prepare("SELECT name FROM nests WHERE id = ?").get(e.nest_id) as Nest | undefined)?.name ?? e.nest_id
+      : null,
+  };
+}
+
+function safeEggFields(body: any) {
+  const portsValue = body.ports ?? "[]";
+  let ports: Array<{ port: number; protocol: string }>;
+  try {
+    const parsed = Array.isArray(portsValue) ? portsValue.filter(validPort) : JSON.parse(String(portsValue));
+    if (!Array.isArray(parsed)) return null;
+    ports = parsed;
+  } catch {
+    return null;
+  }
+  let env = typeof body.env === "string" ? body.env : JSON.stringify(body.env ?? {});
+  env = env.trim() || "{}";
+  if (!/^[\x00-\x7F]*$/.test(env) || !safeJSON(env)) return null;
+  const memoryMB = Number(body.memoryMB);
+  const cpus = Number(body.cpus);
+  const sort = Number(body.sort ?? 100);
+  return {
+    name: String(body.name ?? "").trim(),
+    description: String(body.description ?? "").slice(0, 400),
+    image: String(body.image ?? "").trim(),
+    ports: JSON.stringify(ports),
+    env,
+    memory_mb: Number.isFinite(memoryMB) && memoryMB > 0 ? Math.round(memoryMB) : 2048,
+    cpus: Number.isFinite(cpus) && cpus > 0 ? cpus : 1,
+    sort: Number.isFinite(sort) ? Math.round(sort) : 100,
+    nest_id: String(body.nestId ?? "game-servers"),
+  };
+}
+
 app.get("/api/admin/eggs", async (req, reply) => {
   if (!requireAdmin(req as Authed, reply)) return;
   const eggs = db.prepare("SELECT * FROM eggs ORDER BY sort, name").all() as Egg[];
-  return {
-    eggs: eggs.map((e) => ({
-      id: e.id,
-      name: e.name,
-      description: e.description,
-      image: e.image,
-      ports: JSON.parse(e.ports || "[]"),
-      env: JSON.parse(e.env || "{}"),
-      memoryMB: e.memory_mb,
-      cpus: e.cpus,
-    })),
-  };
+  return { eggs: eggs.map(eggView) };
+});
+
+app.post("/api/admin/eggs", async (req, reply) => {
+  if (!requireAdmin(req as Authed, reply)) return;
+  const fields = safeEggFields(req.body ?? {});
+  if (!fields || !fields.name || !fields.image) {
+    return reply.status(400).send({ error: "name and image are required" });
+  }
+  const nest = db.prepare("SELECT id FROM nests WHERE id = ?").get(fields.nest_id);
+  if (!nest) return reply.status(400).send({ error: "unknown nest" });
+  if (db.prepare("SELECT id FROM eggs WHERE name = ?").get(fields.name)) {
+    return reply.status(400).send({ error: "an egg with this name already exists" });
+  }
+  const eid = id();
+  db.prepare(
+    `INSERT INTO eggs (id, name, description, image, ports, env, memory_mb, cpus, sort, nest_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(eid, fields.name, fields.description, fields.image, fields.ports, fields.env, fields.memory_mb, fields.cpus, fields.sort, fields.nest_id);
+  return reply.status(201).send({ egg: eggView(db.prepare("SELECT * FROM eggs WHERE id = ?").get(eid) as Egg) });
+});
+
+app.patch("/api/admin/eggs/:eid", async (req, reply) => {
+  if (!requireAdmin(req as Authed, reply)) return;
+  const eid = (req.params as any).eid;
+  const egg = db.prepare("SELECT * FROM eggs WHERE id = ?").get(eid) as Egg | undefined;
+  if (!egg) return reply.status(404).send({ error: "not found" });
+  const body = { ...((req.body as any) ?? {}) };
+  body.name ??= egg.name;
+  const fields = safeEggFields(body);
+  if (!fields || !fields.name || !fields.image) {
+    return reply.status(400).send({ error: "invalid egg fields" });
+  }
+  const dupe = db.prepare("SELECT id FROM eggs WHERE name = ? AND id != ?").get(fields.name, eid);
+  if (dupe) return reply.status(400).send({ error: "an egg with this name already exists" });
+  if (fields.nest_id && fields.nest_id !== (egg.nest_id ?? "")) {
+    const nest = db.prepare("SELECT id FROM nests WHERE id = ?").get(fields.nest_id);
+    if (!nest) return reply.status(400).send({ error: "unknown nest" });
+  }
+  db.prepare(
+    `UPDATE eggs SET name = ?, description = ?, image = ?, ports = ?, env = ?,
+     memory_mb = ?, cpus = ?, sort = ?, nest_id = ? WHERE id = ?`,
+  ).run(fields.name, fields.description, fields.image, fields.ports, fields.env, fields.memory_mb, fields.cpus, fields.sort, fields.nest_id, eid);
+  return { egg: eggView(db.prepare("SELECT * FROM eggs WHERE id = ?").get(eid) as Egg) };
+});
+
+app.delete("/api/admin/eggs/:eid", async (req, reply) => {
+  if (!requireAdmin(req as Authed, reply)) return;
+  const eid = (req.params as any).eid;
+  const egg = db.prepare("SELECT * FROM eggs WHERE id = ?").get(eid) as Egg | undefined;
+  if (!egg) return reply.status(404).send({ error: "not found" });
+  db.prepare("DELETE FROM eggs WHERE id = ?").run(eid);
+  return { deleted: eid };
+});
+
+// ---------------------------------------------------------------- nests
+
+app.get("/api/admin/nests", async (req, reply) => {
+  if (!requireAdmin(req as Authed, reply)) return;
+  const nests = db
+    .prepare(
+      `SELECT n.*, (SELECT COUNT(*) FROM eggs e WHERE e.nest_id = n.id) AS eggCount
+       FROM nests n ORDER BY n.sort, n.name`,
+    )
+    .all() as Array<Nest & { eggCount: number }>;
+  return { nests: nests.map((n) => ({ id: n.id, name: n.name, sort: n.sort, eggCount: n.eggCount })) };
+});
+
+app.post("/api/admin/nests", async (req, reply) => {
+  if (!requireAdmin(req as Authed, reply)) return;
+  const name = String((req.body as any)?.name ?? "").trim();
+  if (!name) return reply.status(400).send({ error: "name is required" });
+  if (db.prepare("SELECT id FROM nests WHERE name = ?").get(name)) {
+    return reply.status(400).send({ error: "a nest with this name already exists" });
+  }
+  const nid = id();
+  db.prepare("INSERT INTO nests (id, name, sort) VALUES (?, ?, ?)").run(nid, name, 100);
+  return reply.status(201).send({ nest: { id: nid, name, sort: 100 } });
+});
+
+app.patch("/api/admin/nests/:nid", async (req, reply) => {
+  if (!requireAdmin(req as Authed, reply)) return;
+  const nid = (req.params as any).nid;
+  const nest = db.prepare("SELECT * FROM nests WHERE id = ?").get(nid) as Nest | undefined;
+  if (!nest) return reply.status(404).send({ error: "not found" });
+  const name = String((req.body as any)?.name ?? nest.name).trim();
+  if (!name) return reply.status(400).send({ error: "name is required" });
+  if (db.prepare("SELECT id FROM nests WHERE name = ? AND id != ?").get(name, nid)) {
+    return reply.status(400).send({ error: "a nest with this name already exists" });
+  }
+  db.prepare("UPDATE nests SET name = ? WHERE id = ?").run(name, nid);
+  return { nest: { id: nid, name } };
+});
+
+app.delete("/api/admin/nests/:nid", async (req, reply) => {
+  if (!requireAdmin(req as Authed, reply)) return;
+  const nid = (req.params as any).nid;
+  const count = db.prepare("SELECT COUNT(*) AS c FROM eggs WHERE nest_id = ?").get(nid) as any;
+  if (count.c > 0) return reply.status(400).send({ error: "nest still has eggs" });
+  db.prepare("DELETE FROM nests WHERE id = ?").run(nid);
+  return { deleted: nid };
 });
 
 // Validate optional fields shared by create/patch server.

@@ -36,7 +36,7 @@ export function Sidebar({ open = false, onNavigate }: { open?: boolean; onNaviga
           <span className="bg-gradient-to-r from-[#22d3ee] via-[#3b82f6] to-[#a855f7] bg-clip-text text-[15px] font-black tracking-wider text-transparent">
             AETHER
           </span>
-          <span className="mt-[3px] text-[8px] font-bold tracking-[0.24em] text-text-3">
+          <span className="glow-soft mt-[3px] text-[8px] font-bold tracking-[0.24em] text-sky-200/90">
             CONTROL PANEL
           </span>
         </div>

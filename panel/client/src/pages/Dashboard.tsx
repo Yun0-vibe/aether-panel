@@ -79,8 +79,12 @@ export function Dashboard() {
           </div>
         </div>
         <div className="hero-orb relative flex-none w-[190px] h-[190px] grid place-items-center mr-[18px] hidden lg:block">
-          <span className="absolute inset-[-60px] rounded-full bg-[radial-gradient(circle_at_50%_50%,rgba(34,211,238,0.16)_0%,rgba(99,102,241,0.08)_45%,transparent_70%)] blur-[40px] pointer-events-none" />
-          <span className="hero-orb-core w-[70px] h-[70px] rounded-full brand-grad shadow-[0_0_70px_rgba(34,211,238,0.45)] animate-[logo-breathe_4s_ease-in-out_infinite]" />
+          <span className="absolute inset-[-70px] rounded-full bg-[radial-gradient(circle,rgba(34,211,238,0.13)_0%,rgba(99,102,241,0.07)_48%,transparent_72%)] blur-[42px] pointer-events-none" />
+          <span className="hero-orb-ring r1 absolute inset-0 rounded-full border border-cyan-400/40 drop-shadow-[0_0_7px_rgba(34,211,238,0.45)] animate-[spin_16s_linear_infinite]" style={{ borderStyle: "dashed" }} />
+          <span className="hero-orb-ring r2 absolute inset-[20px] rounded-full border border-fuchsia-400/35 drop-shadow-[0_0_9px_rgba(168,85,247,0.4)] animate-[spin_11s_linear_infinite_reverse]" />
+          <span className="glow-pulse relative z-10 font-display text-center text-[15px] font-black uppercase tracking-[0.32em] leading-[1.7]">
+            Aether<br />Panel
+          </span>
         </div>
       </section>
 
@@ -109,8 +113,9 @@ export function Dashboard() {
           </div>
         ) : servers.length === 0 ? (
           <div className="card empty-card flex flex-col items-center text-center gap-[10px] p-[52px] p-[24px]">
-            <span className="empty-art relative w-[84px] h-[84px] grid place-items-center rounded-[24px] bg-[radial-gradient(circle_at_50%_45%,rgba(34,211,238,0.14)_0%,rgba(99,102,241,0.06)_60%,transparent)] border border-brand/22 mb-[6px]">
+            <span className="empty-art relative w-[84px] h-[84px] grid place-items-center rounded-[24px] bg-brand/7 border border-brand/22 mb-[6px]">
               <IconServer size={34} className="text-brand" />
+              <span className="absolute inset-[-9px] rounded-[30px] border border-dashed border-cyan-400/35 drop-shadow-[0_0_6px_rgba(34,211,238,0.35)] animate-[spin_18s_linear_infinite]" />
             </span>
             <h3 className="text-[19px] font-bold">No servers yet</h3>
             <p className="max-w-[460px] text-text-2 text-[13.5px]">Nothing has been assigned to your account. An admin can provision a game server and attach it to you — or head to the admin console and create one now.</p>

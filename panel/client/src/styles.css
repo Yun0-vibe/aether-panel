@@ -132,6 +132,25 @@ ul {
   box-shadow: 0 0 20px var(--glow);
 }
 
+/* Pulsing brand wordmark: glows bright, breathes dark, glows again. */
+@keyframes glow-pulse {
+  0%, 100% {
+    color: #cffafe;
+    text-shadow: 0 0 14px rgba(34, 211, 238, 0.75), 0 0 42px rgba(59, 130, 246, 0.45), 0 0 80px rgba(168, 85, 247, 0.25);
+  }
+  50% {
+    color: #7dd3fc;
+    text-shadow: 0 0 4px rgba(34, 211, 238, 0.15), 0 0 10px rgba(59, 130, 246, 0.08);
+  }
+}
+.glow-pulse {
+  animation: glow-pulse 3.6s ease-in-out infinite;
+}
+.glow-soft {
+  animation: glow-pulse 3.6s ease-in-out infinite;
+  opacity: 0.95;
+}
+
 .glow-hover:hover {
   box-shadow: 0 0 32px var(--glow);
 }

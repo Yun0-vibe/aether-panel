@@ -56,6 +56,11 @@ CREATE TABLE IF NOT EXISTS eggs (
   cpus REAL NOT NULL DEFAULT 1,
   sort INTEGER NOT NULL DEFAULT 100
 );
+CREATE TABLE IF NOT EXISTS nests (
+  id TEXT PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL,
+  sort INTEGER NOT NULL DEFAULT 100
+);
 `);
 
 export interface Egg {
@@ -67,6 +72,13 @@ export interface Egg {
   env: string;
   memory_mb: number;
   cpus: number;
+  sort: number;
+  nest_id?: string;
+}
+
+export interface Nest {
+  id: string;
+  name: string;
   sort: number;
 }
 
@@ -165,16 +177,32 @@ const EGG_SEED: Egg[] = [
 
 export const CUSTOM_EGG_ID = "custom";
 
-export function seedEggs() {
+// Nests group eggs in both the admin editor and the creation wizard.
+const NEST_SEED: Nest[] = [
+  { id: "minecraft", name: "Minecraft", sort: 10 },
+  { id: "game-servers", name: "Game Servers", sort: 100 },
+];
+
+export function seedNests() {
   const ins = db.prepare(
-    `INSERT INTO eggs (id, name, description, image, ports, env, memory_mb, cpus, sort)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO nests (id, name, sort) VALUES (?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET name=excluded.name, sort=excluded.sort`,
+  );
+  for (const n of NEST_SEED) ins.run(n.id, n.name, n.sort);
+}
+seedNests();
+
+export function seedEggs() {
+  const nestFor = (eggId: string) => (eggId.startsWith("minecraft") ? "minecraft" : "game-servers");
+  const ins = db.prepare(
+    `INSERT INTO eggs (id, name, description, image, ports, env, memory_mb, cpus, sort, nest_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET name=excluded.name, description=excluded.description,
        image=excluded.image, ports=excluded.ports, env=excluded.env,
-       memory_mb=excluded.memory_mb, cpus=excluded.cpus, sort=excluded.sort`,
+       memory_mb=excluded.memory_mb, cpus=excluded.cpus, sort=excluded.sort, nest_id=excluded.nest_id`,
   );
   for (const e of EGG_SEED) {
-    ins.run(e.id, e.name, e.description, e.image, e.ports, e.env, e.memory_mb, e.cpus, e.sort);
+    ins.run(e.id, e.name, e.description, e.image, e.ports, e.env, e.memory_mb, e.cpus, e.sort, nestFor(e.id));
   }
 }
 seedEggs();
@@ -251,4 +279,25 @@ try {
   db.exec("ALTER TABLE users ADD COLUMN discord_id TEXT");
 } catch {
   /* column exists */
+}
+
+// Eggs may predate nests — backfill every legacy egg into a sensible nest.
+try {
+  db.exec("ALTER TABLE eggs ADD COLUMN nest_id TEXT NOT NULL DEFAULT ''");
+} catch {
+  /* column exists */
+}
+{
+  const nestIds = new Set(
+    (db.prepare("SELECT id FROM nests").all() as Nest[]).map((n) => n.id),
+  );
+  if (nestIds.size > 0) {
+    const orphan = db
+      .prepare("SELECT id FROM eggs WHERE nest_id = '' OR nest_id IS NULL")
+      .all() as Array<{ id: string }>;
+    for (const { id } of orphan) {
+      const nestId = nestIds.has("minecraft") && id.startsWith("minecraft") ? "minecraft" : [...nestIds][0];
+      db.prepare("UPDATE eggs SET nest_id = ? WHERE id = ?").run(nestId, id);
+    }
+  }
 }

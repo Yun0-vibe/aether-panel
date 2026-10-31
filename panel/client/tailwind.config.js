@@ -12,7 +12,14 @@ export default {
         ui: ["var(--font-ui)", "sans-serif"],
         mono: ["var(--font-mono)", "monospace"],
       },
+      opacity: Object.fromEntries(
+        [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 20, 22, 24, 26, 28, 30, 35, 40, 50, 60, 70, 90, 95].flatMap((n) => [[n, `${n}%`], [String(n) + "p", `${n}%`]]),
+      ),
       colors: {
+        green: { DEFAULT: "#34d399" },
+        red: { DEFAULT: "#f87171" },
+        violet: { DEFAULT: "#a855f7" },
+        slate: { DEFAULT: "#94a3b8" },
         brand: {
           DEFAULT: "#22d3ee",
           strong: "#3b82f6",
@@ -26,6 +33,7 @@ export default {
           solid: "#0d1424",
         },
         border: {
+          DEFAULT: "rgba(148, 180, 220, 0.10)",
           glass: "rgba(255, 255, 255, 0.07)",
           brand: "rgba(34, 211, 238, 0.42)",
         },
