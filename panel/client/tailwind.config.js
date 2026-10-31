@@ -33,8 +33,8 @@ export default {
           solid: "#0d1424",
         },
         border: {
-          DEFAULT: "rgba(148, 180, 220, 0.10)",
-          glass: "rgba(255, 255, 255, 0.07)",
+          DEFAULT: "rgba(140, 170, 215, 0.055)",
+          glass: "rgba(255, 255, 255, 0.055)",
           brand: "rgba(34, 211, 238, 0.42)",
         },
       },
