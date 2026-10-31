@@ -312,6 +312,27 @@ function SecurityTabMain({ flash }: { flash: (m: string) => void }) {
 
   useEffect(() => { loadMethods(); }, [loadMethods]);
 
+  const onVerified = useCallback((token: string, expiresIn: number) => {
+    unlock(token, expiresIn);
+    flash("");
+  }, []);
+
+  const [showTotpSetup, setShowTotpSetup] = useState(false);
+
+  async function bootstrapPasskey() {
+    setUnlockErr(null); setUnlockBusy(true);
+    try {
+      const { startRegistration } = await import("@simplewebauthn/browser");
+      const { options } = await api<{ options: Record<string, unknown> }>("/api/account/passkeys/options", { method: "POST", noRedirect: true });
+      const attResp = await startRegistration({ optionsJSON: options as never });
+      const d = await api<{ reauthToken: string; expiresIn: number }>("/api/account/passkeys/register", { method: "POST", body: { response: attResp }, noRedirect: true });
+      unlock(d.reauthToken, d.expiresIn);
+      flash("Passkey added — security unlocked");
+    } catch (e) {
+      setUnlockErr(e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Could not add passkey");
+    } finally { setUnlockBusy(false); }
+  }
+
   // Auto-lock countdown check.
   useEffect(() => {
     if (!reauthToken) return;
@@ -397,11 +418,31 @@ function SecurityTabMain({ flash }: { flash: (m: string) => void }) {
         )}
 
         {methods && !methods.passkey && !methods.totp && methods.password && (
-          <form onSubmit={verifyPasswordUnlock} className="flex w-full flex-col gap-[10px]">
-            <p className="text-[12px] text-text-3">Add a passkey or 2FA later — for now confirm your password:</p>
-            <input className={FIELD} type="password" value={pwVerify} onChange={(e) => setPwVerify(e.target.value)} placeholder="Current password" required autoComplete="current-password" />
-            <button className="btn btn-primary" disabled={unlockBusy}>{unlockBusy ? <span className="btn-spinner" /> : null} Unlock security settings</button>
-          </form>
+          <>
+            <form onSubmit={verifyPasswordUnlock} className="flex w-full flex-col gap-[10px]">
+              <input className={FIELD} type="password" value={pwVerify} onChange={(e) => setPwVerify(e.target.value)} placeholder="Current password" required autoComplete="current-password" />
+              <button className="btn btn-primary" disabled={unlockBusy}>{unlockBusy ? <span className="btn-spinner" /> : null} Unlock security settings</button>
+            </form>
+            <div className="flex w-full items-center gap-[10px]">
+              <span className="h-px flex-1 bg-[rgba(255,255,255,0.08)]" />
+              <span className="text-[10.5px] font-bold uppercase tracking-wider text-text-3">Or set up a verification method</span>
+              <span className="h-px flex-1 bg-[rgba(255,255,255,0.08)]" />
+            </div>
+            <div className="grid w-full grid-cols-1 gap-[10px] sm:grid-cols-2">
+              <button className="btn" onClick={() => { setShowTotpSetup((v) => !v); setUnlockErr(null); }}>
+                Authenticator app
+              </button>
+              <button className="btn" onClick={() => void bootstrapPasskey()} disabled={unlockBusy}>
+                {unlockBusy ? <span className="btn-spinner" /> : null} Add a passkey
+              </button>
+            </div>
+            {showTotpSetup && (
+              <div className="w-full text-left">
+                <TotpCard user={user} setUser={setUser} reauthToken={null} onVerified={onVerified} />
+              </div>
+            )}
+            <p className="text-[11px] text-text-3">Setting either one up also unlocks security for 10 minutes.</p>
+          </>
         )}
 
         <FormError msg={unlockErr} />
@@ -419,8 +460,8 @@ function SecurityTabMain({ flash }: { flash: (m: string) => void }) {
       <div className="grid grid-cols-1 items-start gap-[20px] xl:grid-cols-2">
         <PasswordCard reauthToken={reauthToken} onReauthRejected={() => { setReauthToken(null); setReauthExp(0); }} flash={flash} />
         <div className="flex flex-col gap-[20px]">
-          <TotpCard user={user} setUser={setUser} reauthToken={reauthToken} />
-          <PasskeysCard reauthToken={reauthToken} onReauthRejected={() => { setReauthToken(null); setReauthExp(0); }} />
+          <TotpCard user={user} setUser={setUser} reauthToken={reauthToken} onVerified={onVerified} />
+          <PasskeysCard reauthToken={reauthToken} onReauthRejected={() => { setReauthToken(null); setReauthExp(0); }} onVerified={onVerified} />
         </div>
       </div>
     </div>
@@ -487,7 +528,7 @@ function PasswordCard({ reauthToken, onReauthRejected, flash }: { reauthToken: s
 
 /* ============ 2fa */
 
-function TotpCard({ user, setUser, reauthToken }: { user: User | null; setUser: (u: User | null) => void; reauthToken: string | null }) {
+function TotpCard({ user, setUser, reauthToken, onVerified }: { user: User | null; setUser: (u: User | null) => void; reauthToken: string | null; onVerified?: (token: string, expiresIn: number) => void }) {
   const toast = useToast();
   const [modal, setModal] = useState<{ qr: string; secret: string } | null>(null);
   const [code, setCode] = useState("");
@@ -509,11 +550,12 @@ function TotpCard({ user, setUser, reauthToken }: { user: User | null; setUser: 
     e.preventDefault();
     setErr(null); setBusy(true);
     try {
-      const d = await api<{ user: User }>("/api/account/totp/enable", { method: "POST", body: { code }, noRedirect: true });
+      const d = await api<{ user: User; reauthToken?: string; expiresIn?: number }>("/api/account/totp/enable", { method: "POST", body: { code }, noRedirect: true });
       setUser(d.user);
       setModal(null);
       setCode("");
       toast.push("Two-factor authentication enabled", "success");
+      if (d.reauthToken) onVerified?.(d.reauthToken, d.expiresIn ?? 600_000);
     } catch (e) { setErr(e instanceof ApiError ? e.message : "Invalid code"); }
     finally { setBusy(false); }
   }
@@ -613,7 +655,7 @@ function TotpCard({ user, setUser, reauthToken }: { user: User | null; setUser: 
 
 /* ============ passkeys */
 
-function PasskeysCard({ reauthToken, onReauthRejected }: { reauthToken: string | null; onReauthRejected: () => void }) {
+function PasskeysCard({ reauthToken, onReauthRejected, onVerified }: { reauthToken: string | null; onReauthRejected: () => void; onVerified?: (token: string, expiresIn: number) => void }) {
   const toast = useToast();
   const [passkeys, setPasskeys] = useState<PasskeyItem[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -641,9 +683,10 @@ function PasskeysCard({ reauthToken, onReauthRejected }: { reauthToken: string |
       const { startRegistration } = await import("@simplewebauthn/browser");
       const { options } = await api<{ options: Record<string, unknown> }>("/api/account/passkeys/options", { method: "POST", headers: H });
       const attResp = await startRegistration({ optionsJSON: options as never });
-      const d = await api<{ passkeys: PasskeyItem[] }>("/api/account/passkeys/register", { method: "POST", body: { response: attResp }, noRedirect: true, headers: H });
+      const d = await api<{ passkeys: PasskeyItem[]; reauthToken?: string; expiresIn?: number }>("/api/account/passkeys/register", { method: "POST", body: { response: attResp }, noRedirect: true, headers: H });
       setPasskeys(d.passkeys);
       toast.push("Passkey added", "success");
+      if (d.reauthToken) onVerified?.(d.reauthToken, d.expiresIn ?? 600_000);
     } catch (e) {
       const body = e instanceof ApiError ? (e.body as { reauthRequired?: boolean } | null) : null;
       if (e instanceof ApiError && body?.reauthRequired) onReauthRejected();

@@ -57,6 +57,17 @@ function pruneMaps() {
   for (const [k, v] of reauthTokens) if (v.exp < t) reauthTokens.delete(k);
 }
 
+/** WebAuthn puts the challenge inside clientDataJSON (base64url), not as a
+ *  flat field on the assertion — this is the correct way to recover it. */
+function clientChallenge(resp: { response?: { clientDataJSON?: string } } | undefined): string {
+  try {
+    const cd = JSON.parse(Buffer.from(String(resp?.response?.clientDataJSON ?? ""), "base64url").toString("utf8")) as { challenge?: string };
+    return String(cd.challenge ?? "");
+  } catch {
+    return "";
+  }
+}
+
 /** Sensitive operations (password change, viewing/managing passkeys) demand a
  *  fresh step-up verification: passkey assertion or TOTP code (or password for
  *  accounts with neither). */
@@ -278,7 +289,9 @@ app.post("/api/account/totp/enable", async (req, reply) => {
   }
   db.prepare("UPDATE users SET totp_enabled = 1 WHERE id = ?").run(user.id);
   const fresh = db.prepare("SELECT * FROM users WHERE id = ?").get(user.id) as User;
-  return { user: publicUser(fresh) };
+  const token = crypto.randomBytes(24).toString("hex");
+  reauthTokens.set(token, { userId: user.id, exp: Date.now() + REAUTH_TTL });
+  return { user: publicUser(fresh), reauthToken: token, expiresIn: REAUTH_TTL };
 });
 
 app.post("/api/account/totp/disable", async (req, reply) => {
@@ -327,10 +340,20 @@ app.get("/api/account/passkeys", async (req, reply) => {
   return { passkeys: rows.map(passkeyView) };
 });
 
+// Enrollment is allowed without step-up for accounts with NO second factor yet
+// (chicken-and-egg: you can't verify to add your first factor). Registering a
+// passkey / confirming a TOTP code proves possession, so we treat it as a
+// verified identity and issue a reauth token in the response.
+async function enrollOk(req: FastifyRequest, user: User): Promise<boolean> {
+  const pk = (db.prepare("SELECT COUNT(*) AS c FROM passkeys WHERE user_id = ?").get(user.id) as any).c as number;
+  if (reauthOk(req, user)) return true;
+  return pk === 0 && !user.totp_enabled;
+}
+
 app.post("/api/account/passkeys/options", async (req, reply) => {
   if (!requireAuth(req as Authed, reply)) return;
   const user = (req as Authed).user;
-  if (!reauthOk(req, user)) return reply.status(403).send({ error: "Verify with your passkey or authenticator first", reauthRequired: true });
+  if (!(await enrollOk(req, user))) return reply.status(403).send({ error: "Verify with your passkey or authenticator first", reauthRequired: true });
   const origin = originOf(req);
   const rpID = rpIdOf(origin);
   const existing = db.prepare("SELECT credential_id, transports FROM passkeys WHERE user_id = ?").all(user.id) as PasskeyRow[];
@@ -353,7 +376,7 @@ app.post("/api/account/passkeys/options", async (req, reply) => {
 app.post("/api/account/passkeys/register", async (req, reply) => {
   if (!requireAuth(req as Authed, reply)) return;
   const user = (req as Authed).user;
-  if (!reauthOk(req, user)) return reply.status(403).send({ error: "Verify with your passkey or authenticator first", reauthRequired: true });
+  if (!(await enrollOk(req, user))) return reply.status(403).send({ error: "Verify with your passkey or authenticator first", reauthRequired: true });
   const origin = originOf(req);
   const expectedChallenge = regChallenges.get(user.id);
   if (!expectedChallenge) return reply.status(400).send({ error: "no registration in progress" });
@@ -386,7 +409,9 @@ app.post("/api/account/passkeys/register", async (req, reply) => {
     );
     regChallenges.delete(user.id);
     const rows = db.prepare("SELECT * FROM passkeys WHERE user_id = ? ORDER BY created_at DESC").all(user.id) as PasskeyRow[];
-    return { verified: true, passkeys: rows.map(passkeyView) };
+    const token = crypto.randomBytes(24).toString("hex");
+    reauthTokens.set(token, { userId: user.id, exp: Date.now() + REAUTH_TTL });
+    return { verified: true, passkeys: rows.map(passkeyView), reauthToken: token, expiresIn: REAUTH_TTL };
   } catch (e) {
     return reply.status(400).send({ error: e instanceof Error ? e.message : "passkey registration failed" });
   }
@@ -423,9 +448,12 @@ app.post("/api/auth/passkey/login", async (req, reply) => {
   const row = db.prepare("SELECT * FROM passkeys WHERE credential_id = ?").get(body.response.id) as PasskeyRow | undefined;
   if (!row) return reply.status(401).send({ error: "unknown passkey" });
   try {
+    const challenge = clientChallenge(body.response);
+    const entry = authChallenges.get(challenge);
+    if (entry?.kind !== "login") return reply.status(401).send({ error: "expired sign-in attempt — try again" });
     const verification = await verifyAuthenticationResponse({
       response: body.response,
-      expectedChallenge: authChallenges.get(body.response.response?.challenge ?? "")?.kind === "login" ? (body.response.response?.challenge ?? "") : "",
+      expectedChallenge: challenge,
       expectedOrigin: origin,
       expectedRPID: rpID,
       credential: {
@@ -436,7 +464,7 @@ app.post("/api/auth/passkey/login", async (req, reply) => {
       requireUserVerification: true,
     });
     if (!verification.verified) return reply.status(401).send({ error: "passkey verification failed" });
-    authChallenges.delete(body.response.response?.challenge ?? "");
+    authChallenges.delete(challenge);
     db.prepare("UPDATE passkeys SET counter = ?, last_used_at = ? WHERE id = ?").run(verification.authenticationInfo.newCounter, now(), row.id);
     createSession(reply, row.user_id);
     const user = db.prepare("SELECT * FROM users WHERE id = ?").get(row.user_id) as User;
@@ -487,7 +515,7 @@ app.post("/api/account/reauth/verify", async (req, reply) => {
     if (body.response?.id) {
       const row = db.prepare("SELECT * FROM passkeys WHERE credential_id = ?").get(body.response.id) as PasskeyRow | undefined;
       if (row && row.user_id === user.id) {
-        const challenge = body.response.response?.challenge ?? "";
+        const challenge = clientChallenge(body.response);
         const expected = authChallenges.get(challenge);
         if (expected?.kind !== "reauth" || expected.userId !== user.id) {
           return reply.status(401).send({ error: "expired verification — try again" });
@@ -506,6 +534,7 @@ app.post("/api/account/reauth/verify", async (req, reply) => {
         });
         ok = verification.verified;
         if (ok) {
+          authChallenges.delete(challenge);
           db.prepare("UPDATE passkeys SET counter = ?, last_used_at = ? WHERE id = ?").run(verification.authenticationInfo.newCounter, now(), row.id);
         }
       }
