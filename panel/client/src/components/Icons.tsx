@@ -367,3 +367,32 @@ export const IconLock = (p: IconProps) => (
     <path d="M8 10V7.5a4 4 0 0 1 8 0V10" />
   </Svg>
 );
+
+export const IconCopy = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="9" y="9" width="11" height="11" rx="2" />
+    <path d="M5 15H4.5A1.5 1.5 0 0 1 3 13.5v-9A1.5 1.5 0 0 1 4.5 3h9A1.5 1.5 0 0 1 15 4.5V5" />
+  </Svg>
+);
+
+export const IconDiscord = (p: IconProps) => (
+  <Svg {...p} strokeWidth={1.6}>
+    <path d="M8.6 5.2a9.4 9.4 0 0 1 2.4-.7l.3.6a12.6 12.6 0 0 1 3.4 0l.3-.6c.83.16 1.63.4 2.4.7 1.86 2.7 2.7 5.5 2.5 8.4a9.5 9.5 0 0 1-2.9 1.5c-.3-.5-.6-1-.8-1.5.5-.2.9-.4 1.3-.7l-.3-.2c-2.5 1.2-5.6 1.2-8.2 0l-.3.2c.4.3.8.5 1.3.7-.2.5-.5 1-.8 1.5a9.4 9.4 0 0 1-2.9-1.5c-.2-2.9.7-5.7 2.3-8.4Z" />
+    <circle cx="9.5" cy="10.5" r="1.15" fill="currentColor" stroke="none" />
+    <circle cx="14.5" cy="10.5" r="1.15" fill="currentColor" stroke="none" />
+  </Svg>
+);
+
+export const IconArrowLeft = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M19 12H5" />
+    <path d="m11 18-6-6 6-6" />
+  </Svg>
+);
+
+export const IconRocket = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 15c-2 1.5-2.4 4.5-2.4 4.5S13 19.8 15 17c1.6-2.3 2.7-6.6 2.7-9.2A12 12 0 0 0 19 3a12 12 0 0 0-4.8 1.3C11.6 4.3 7.3 5.4 5 7c-2.7 2-3 5.4-3 5.4S8 12.8 12 15Z" />
+    <circle cx="15" cy="9" r="1.4" />
+  </Svg>
+);

@@ -105,6 +105,7 @@ func run(token, port string) error {
 	mux.Handle("POST /v1/servers", api.auth(http.HandlerFunc(api.createServer)))
 	mux.Handle("GET /v1/servers", api.auth(http.HandlerFunc(api.listServers)))
 	mux.Handle("GET /v1/servers/{id}", api.auth(http.HandlerFunc(api.getServer)))
+	mux.Handle("GET /v1/servers/{id}/stats", api.auth(http.HandlerFunc(api.statsServer)))
 	mux.Handle("POST /v1/servers/{id}/power", api.auth(http.HandlerFunc(api.powerServer)))
 	mux.Handle("DELETE /v1/servers/{id}", api.auth(http.HandlerFunc(api.deleteServer)))
 	mux.Handle("GET /v1/ws/{id}", api.authWS(http.HandlerFunc(api.consoleWS)))

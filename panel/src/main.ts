@@ -89,6 +89,53 @@ app.get("/api/auth/me", async (req, reply) => {
   return { user: publicUser(user) };
 });
 
+// ---------------------------------------------------------------- account self-service
+
+// Update the signed-in user's profile (display name, bio, discord link).
+app.patch("/api/account", async (req, reply) => {
+  if (!requireAuth(req as Authed, reply)) return;
+  const user = (req as Authed).user;
+  const body = (req.body ?? {}) as Record<string, unknown>;
+
+  const displayName = body.displayName === undefined ? user.display_name : String(body.displayName).slice(0, 48).trim();
+  const bio = body.bio === undefined ? user.bio : String(body.bio).slice(0, 280).trim();
+  if (displayName === "") return reply.status(400).send({ error: "Display name cannot be empty" });
+  // Discord IDs must be a numeric snowflake (17-20 digits) or empty to unlink.
+  const discordId =
+    body.discordId === undefined ? (user.discord_id ?? "") : String(body.discordId).trim();
+  if (discordId !== "" && !/^\d{17,20}$/.test(discordId)) {
+    return reply.status(400).send({ error: "Discord ID must be a numeric snowflake (17-20 digits)" });
+  }
+
+  db.prepare("UPDATE users SET display_name = ?, bio = ?, discord_id = ? WHERE id = ?").run(
+    displayName === "" ? null : displayName,
+    bio === "" ? null : bio,
+    discordId === "" ? null : discordId,
+    user.id,
+  );
+  const fresh = db.prepare("SELECT * FROM users WHERE id = ?").get(user.id) as User;
+  return { user: publicUser(fresh) };
+});
+
+// Change the signed-in user's password (requires the current password).
+app.post("/api/account/password", async (req, reply) => {
+  if (!requireAuth(req as Authed, reply)) return;
+  const user = (req as Authed).user;
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const current = String(body.currentPassword ?? "");
+  const next = String(body.newPassword ?? "");
+  if (!current || !next) return reply.status(400).send({ error: "Both passwords are required" });
+  if (next.length < 6) return reply.status(400).send({ error: "New password must be at least 6 characters" });
+  if (current === next) return reply.status(400).send({ error: "New password must differ from the current one" });
+
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(user.id) as User;
+  if (!verifyPassword(current, row.password_hash)) {
+    return reply.status(403).send({ error: "Current password is incorrect" });
+  }
+  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hashPassword(next), user.id);
+  return { ok: true };
+});
+
 // ---------------------------------------------------------------- user servers
 
 function serverView(s: Server, node: Node | null, status: string) {
@@ -169,12 +216,63 @@ app.post("/api/servers/:id/power", async (req, reply) => {
   }
 });
 
+// Relay live container stats from the owning node's daemon.
+app.get("/api/servers/:id/stats", async (req, reply) => {
+  if (!requireAuth(req as Authed, reply)) return;
+  const user = (req as Authed).user;
+  const s = db.prepare("SELECT * FROM servers WHERE id = ?").get((req.params as any).id) as
+    | Server
+    | undefined;
+  if (!s) return reply.status(404).send({ error: "not found" });
+  if (user.role !== "admin" && s.user_id !== user.id) {
+    return reply.status(403).send({ error: "not your server" });
+  }
+  const node = nodeMap().get(s.node_id);
+  if (!node) return reply.status(502).send({ error: "server's node is missing" });
+  try {
+    const res = await daemonFetch(node, `/v1/servers/${s.id}/stats`, {}, 5_000);
+    if (!res.ok) return reply.status(res.status).send({ error: await res.text() });
+    return res.json();
+  } catch (err: any) {
+    return reply.status(502).send({ error: `node unreachable: ${err.message}` });
+  }
+});
+
 // ---------------------------------------------------------------- admin CRUD
 
 function nodeMap(): Map<string, Node> {
   const rows = db.prepare("SELECT * FROM nodes").all() as Node[];
   return new Map(rows.map((n) => [n.id, n]));
 }
+
+// Per-node daemon reachability + health summary for admin node cards.
+app.get("/api/admin/nodes/status", async (req, reply) => {
+  if (!requireAdmin(req as Authed, reply)) return;
+  const rows = db.prepare("SELECT * FROM nodes ORDER BY created_at").all() as Node[];
+  const counts = new Map(
+    (db
+      .prepare("SELECT node_id, COUNT(*) AS c FROM servers GROUP BY node_id")
+      .all() as Array<{ node_id: string; c: number }>).map((r) => [r.node_id, r.c]),
+  );
+  const nodes = await Promise.all(
+    rows.map(async (n) => {
+      const base = {
+        id: n.id,
+        name: n.name,
+        host: n.host,
+        daemonPort: n.daemon_port,
+        serverCount: counts.get(n.id) ?? 0,
+      };
+      try {
+        const res = await daemonFetch(n, "/healthz", {}, 3_000);
+        return res.ok ? { ...base, online: true, version: await res.text() } : { ...base, online: false, version: null };
+      } catch {
+        return { ...base, online: false, version: null };
+      }
+    }),
+  );
+  return { nodes };
+});
 
 app.get("/api/admin/users", async (req, reply) => {
   if (!requireAdmin(req as Authed, reply)) return;

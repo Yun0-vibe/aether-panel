@@ -77,5 +77,13 @@ export function lookupUser(req: FastifyRequest): User | null {
 }
 
 export function publicUser(u: User) {
-  return { id: u.id, email: u.email, role: u.role };
+  return {
+    id: u.id,
+    email: u.email,
+    role: u.role,
+    displayName: u.display_name ?? u.email.split("@")[0],
+    bio: u.bio ?? "",
+    discordId: u.discord_id ?? null,
+    createdAt: u.created_at,
+  };
 }

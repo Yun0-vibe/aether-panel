@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -227,6 +228,53 @@ func (api *daemonAPI) lastLines(ctx context.Context, id string) (string, error) 
 		return string(raw), nil
 	}
 	return sb.String(), nil
+}
+
+// containerStatsSnapshot is a flattened, frontend-friendly view of one
+// docker stats sample.
+type containerStatsSnapshot struct {
+	Running    bool    `json:"running"`
+	CPUPercent float64 `json:"cpuPercent"`
+	MemUsedMB  float64 `json:"memUsedMB"`
+	MemLimitMB float64 `json:"memLimitMB"`
+	Pids       int     `json:"pids"`
+}
+
+// statsSnapshot returns a single (non-streaming) stats sample for a server's
+// container. Stopped containers report zeros with running=false.
+func (api *daemonAPI) statsSnapshot(ctx context.Context, id string) (containerStatsSnapshot, error) {
+	var out containerStatsSnapshot
+	res, err := api.docker.ContainerStats(ctx, containerName(id), false)
+	if client.IsErrNotFound(err) {
+		return out, nil // container not created yet
+	}
+	if err != nil {
+		return out, err
+	}
+	defer res.Body.Close()
+
+	var st container.Stats
+	if err := json.NewDecoder(res.Body).Decode(&st); err != nil {
+		return out, err
+	}
+
+	out.Running = st.CPUStats.SystemUsage > 0
+	cpuDelta := float64(st.CPUStats.CPUUsage.TotalUsage) - float64(st.PreCPUStats.CPUUsage.TotalUsage)
+	sysDelta := float64(st.CPUStats.SystemUsage) - float64(st.PreCPUStats.SystemUsage)
+	online := st.CPUStats.OnlineCPUs
+	if online == 0 {
+		online = uint32(len(st.CPUStats.CPUUsage.PercpuUsage))
+		if online == 0 {
+			online = 1
+		}
+	}
+	if sysDelta > 0 && cpuDelta > 0 {
+		out.CPUPercent = cpuDelta / sysDelta * float64(online) * 100
+	}
+	out.MemUsedMB = float64(st.MemoryStats.Usage) / 1024 / 1024
+	out.MemLimitMB = float64(st.MemoryStats.Limit) / 1024 / 1024
+	out.Pids = int(st.PidsStats.Current)
+	return out, nil
 }
 
 

@@ -185,6 +185,9 @@ export interface User {
   password_hash: string;
   role: "admin" | "user";
   created_at: number;
+  display_name?: string | null;
+  bio?: string | null;
+  discord_id?: string | null;
 }
 
 export interface Node {
@@ -229,6 +232,23 @@ try {
 }
 try {
   db.exec("ALTER TABLE servers ADD COLUMN last_backup_at INTEGER");
+} catch {
+  /* column exists */
+}
+
+// Existing databases predate the account self-service profile fields.
+try {
+  db.exec("ALTER TABLE users ADD COLUMN display_name TEXT");
+} catch {
+  /* column exists */
+}
+try {
+  db.exec("ALTER TABLE users ADD COLUMN bio TEXT");
+} catch {
+  /* column exists */
+}
+try {
+  db.exec("ALTER TABLE users ADD COLUMN discord_id TEXT");
 } catch {
   /* column exists */
 }

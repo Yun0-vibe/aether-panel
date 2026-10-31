@@ -1,68 +1,226 @@
 import React, { useState } from "react";
-import { useAuth } from "../auth/AuthContext";
-import { IconUsers, IconMail, IconShield, IconSparkle } from "../components/Icons";
+import { useAuth, api, ApiError } from "../auth/AuthContext";
+import {
+  IconMail, IconShield, IconKey, IconDiscord, IconCheck, IconUsers, IconLock,
+} from "../components/Icons";
+import { RoleBadge } from "../components/RoleBadge";
 
-export function ProfilePage() {
-  const { user } = useAuth();
-  const [displayName, setDisplayName] = useState(user?.email?.split("@")[0] ?? "User");
-  const [bio, setBio] = useState("Game server operator and panel administrator.");
-  const [saved, setSaved] = useState(false);
+const FIELD =
+  "h-[40px] w-full rounded-lg border border-border bg-[rgba(0,0,0,0.26)] px-[13px] text-[13.5px] text-white outline-none transition-all duration-150 focus:border-brand/60 focus:bg-[rgba(34,211,238,0.05)]";
+const PREFIX_FIELD =
+  "h-[40px] w-full rounded-r-none rounded-lg rounded-l-none border border-border border-l-0 bg-[rgba(0,0,0,0.26)] px-[13px] text-[13.5px] text-white outline-none transition-all duration-150 focus:border-brand/60";
 
-  function handleSave() {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  }
-
+function FormError({ msg }: { msg: string | null }) {
+  if (!msg) return null;
   return (
-    <div className="container max-w-[720px] mx-auto">
-      <div className="page-head mb-[22px]">
-        <h1 className="page-title text-[clamp(26px,3vw,34px)] font-black brand-grad grad-text">Profile</h1>
-        <p className="mt-[6px] text-[13.5px] text-text-2">Your account, identity and settings.</p>
-      </div>
-
-      <section className="card relative overflow-hidden flex items-center gap-[20px] p-[24px] mb-[20px]">
-        <div className="relative">
-          <span className="avatar w-[72px] h-[72px] text-[22px] rounded-[18px] shadow-[0_8px_28px_-8px_rgba(34,211,238,0.5)]">{(user?.email ?? "?").slice(0, 1).toUpperCase()}</span>
-          <span className="absolute bottom-[6px] right-[6px] w-[14px] h-[14px] rounded-full bg-green-500 border-[2.5px] border-[#0d1424] shadow-[0_0_8px_rgba(52,211,153,0.5)] animate-[pulse_2.2s_ease-in-out_infinite]" />
-        </div>
-        <div className="flex-1 min-w-[0]">
-          <h2 className="text-[18px] font-bold text-white">{displayName}</h2>
-          <p className="text-[13px] text-text-2 mt-[4px] truncate">{user?.email}</p>
-          <span className="inline-flex items-center gap-[6px] mt-[10px] px-[10px] py-[4px] rounded-full text-[11px] font-black tracking-[0.1em] uppercase text-white bg-[rgba(34,211,238,0.08)] border border-brand/22 shadow-[0_0_12px_rgba(34,211,238,0.2)]">
-            <IconShield size={14} />
-            ADMIN
-          </span>
-        </div>
-      </section>
-
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-[16px] mb-[20px]">
-        <ProfileTile icon={<IconMail size={20} className="flex-none" />} label="Email" value={user?.email ?? "—"} />
-        <ProfileTile icon={<IconShield size={20} className="flex-none" />} label="Role" value={user?.role ?? "user"} />
-        <ProfileTile icon={<IconSparkle size={20} className="flex-none" />} label="Member since" value={new Date().toLocaleDateString()} />
-      </div>
-
-      <section className="card relative overflow-hidden mb-[20px]">
-        <div className="flex items-center justify-between mb-[20px]">
-          <h3 className="text-[15px] font-bold tracking-[0.02em]">About</h3>
-          <button className="btn btn-ghost btn-sm" onClick={handleSave} disabled={saved}><IconSparkle size={15} className="flex-none" /> Save</button>
-        </div>
-        <textarea
-          className="w-full min-h-[100px] p-[14px] rounded-[14px] bg-[#0a0e15] border border-border text-white text-[13.5px] leading-[1.65] outline-none focus:border-brand/60 focus-visible:ring-3 focus-visible:ring-brand/12 resize-y transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] font-ui"
-          value={bio}
-          onChange={(e) => setBio(e.target.value)}
-          placeholder="Write something about yourself..."
-        />
-      </section>
+    <div className="flex items-center gap-[8px] rounded-lg border border-red-500/30 bg-[rgba(248,113,113,0.1)] px-[13px] py-[10px] text-[12.5px] text-red-400">
+      {msg}
     </div>
   );
 }
 
-function ProfileTile({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function FormOk({ msg }: { msg: string | null }) {
+  if (!msg) return null;
   return (
-    <article className="glass-2 p-[20px] rounded-[18px] border border-border/8 bg-[rgba(19,27,47,0.78)] backdrop-blur-[16px] -webkit-backdrop-blur-[16px] hover:border-brand/50 hover:-translate-y-[2px] hover:shadow-[0_16px_36px_-16px_rgba(0,0,0,0.6)] transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]">
-      <span className="stat-icon flex-none w-[40px] h-[40px] grid place-items-center rounded-[12px] bg-white/4 border border-white/8 text-text-2 mb-[12px]">{icon}</span>
-      <div className="text-[10px] font-black tracking-[0.1em] uppercase text-text-3 mb-[4px]">{label}</div>
-      <div className="font-display text-[16px] font-bold text-white truncate">{value}</div>
-    </article>
+    <div className="flex items-center gap-[8px] rounded-lg border border-green/30 bg-[rgba(52,211,153,0.1)] px-[13px] py-[10px] text-[12.5px] text-green-400">
+      <IconCheck size={15} className="flex-none" /> {msg}
+    </div>
+  );
+}
+
+export function ProfilePage() {
+  const { user, setUser } = useAuth();
+
+  /* -------- profile form -------- */
+  const [displayName, setDisplayName] = useState(user?.displayName ?? "");
+  const [bio, setBio] = useState(user?.bio ?? "");
+  const [discordId, setDiscordId] = useState(user?.discordId ?? "");
+  const [proBusy, setProBusy] = useState(false);
+  const [proErr, setProErr] = useState<string | null>(null);
+  const [proOk, setProOk] = useState<string | null>(null);
+
+  async function saveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    setProErr(null); setProOk(null); setProBusy(true);
+    try {
+      const d = await api<{ user: NonNullable<typeof user> }>("/api/account", {
+        method: "PATCH",
+        body: { displayName, bio, discordId },
+      });
+      setUser(d.user);
+      setProOk("Profile saved");
+    } catch (e) {
+      setProErr(e instanceof ApiError ? e.message : "Failed to save profile");
+    } finally { setProBusy(false); }
+  }
+
+  /* -------- password form -------- */
+  const [curPass, setCurPass] = useState("");
+  const [newPass, setNewPass] = useState("");
+  const [repeatPass, setRepeatPass] = useState("");
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwErr, setPwErr] = useState<string | null>(null);
+  const [pwOk, setPwOk] = useState<string | null>(null);
+
+  async function changePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setPwErr(null); setPwOk(null);
+    if (newPass !== repeatPass) { setPwErr("New passwords do not match"); return; }
+    setPwBusy(true);
+    try {
+      await api("/api/account/password", {
+        method: "POST",
+        body: { currentPassword: curPass, newPassword: newPass },
+      });
+      setPwOk("Password changed");
+      setCurPass(""); setNewPass(""); setRepeatPass("");
+    } catch (e) {
+      setPwErr(e instanceof ApiError ? e.message : "Failed to change password");
+    } finally { setPwBusy(false); }
+  }
+
+  const memberSince = user?.createdAt
+    ? new Date(user.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })
+    : "—";
+  const initials = (user?.displayName || user?.email || "?").slice(0, 2).toUpperCase();
+
+  return (
+    <div className="flex flex-col gap-[20px]">
+      {/* identity header */}
+      <section className="card relative overflow-hidden flex flex-wrap items-center gap-[20px] p-[24px]">
+        <div className="relative">
+          <span className="avatar w-[72px] h-[72px] text-[22px] rounded-[18px] brand-grad text-[#04121c] shadow-[0_8px_28px_-8px_rgba(34,211,238,0.5)]">
+            {initials}
+          </span>
+          <span className="absolute bottom-[6px] right-[6px] w-[14px] h-[14px] rounded-full bg-green-500 border-[2.5px] border-[#0d1424] shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-[10px]">
+            <h2 className="text-[19px] font-bold text-white truncate">{user?.displayName || user?.email}</h2>
+            <RoleBadge role={user?.role ?? "user"} />
+          </div>
+          <p className="mt-[4px] text-[13px] text-text-2 truncate">{user?.email}</p>
+          <div className="mt-[10px] flex flex-wrap items-center gap-[8px] text-[11.5px] text-text-3">
+            <span className="inline-flex items-center gap-[6px] rounded-full border border-border bg-white/4 px-[10px] py-[3px]">
+              <IconMail size={13} className="flex-none text-brand" /> Member since {memberSince}
+            </span>
+            {user?.discordId ? (
+              <span className="inline-flex items-center gap-[6px] rounded-full border border-[rgba(88,101,242,0.4)] bg-[rgba(88,101,242,0.12)] px-[10px] py-[3px] text-[#a5adff]">
+                <IconDiscord size={13} className="flex-none" /> Discord linked
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-[6px] rounded-full border border-border bg-white/4 px-[10px] py-[3px]">
+                <IconDiscord size={13} className="flex-none text-text-3" /> Discord not linked
+              </span>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 items-start gap-[20px] xl:grid-cols-2">
+        {/* profile edit */}
+        <section className="card">
+          <div className="mb-[18px] flex items-center gap-[10px]">
+            <span className="stat-icon flex h-[34px] w-[34px] flex-none place-items-center rounded-[10px] border border-white/8 bg-white/4 text-brand"><IconUsers size={16} /></span>
+            <div>
+              <h3 className="text-[15px] font-bold">Profile</h3>
+              <p className="text-[11.5px] text-text-3">How you appear across the panel.</p>
+            </div>
+          </div>
+          <form onSubmit={saveProfile} className="flex flex-col gap-[15px]">
+            <label className="flex flex-col gap-[7px]">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Display name</span>
+              <input className={FIELD} value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={48} placeholder="e.g. Ninja" />
+            </label>
+            <label className="flex flex-col gap-[7px]">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-text-3">About you</span>
+              <textarea
+                className="min-h-[84px] w-full resize-y rounded-lg border border-border bg-[rgba(0,0,0,0.26)] px-[13px] py-[10px] text-[13.5px] leading-[1.6] text-white outline-none transition-all duration-150 focus:border-brand/60"
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                maxLength={280}
+                placeholder="A short bio (max 280 characters)"
+              />
+            </label>
+            <div className="flex flex-col gap-[7px]">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Discord</span>
+              <div className="flex">
+                <span className="flex h-[40px] flex-none items-center rounded-lg rounded-r-none border border-r-0 border-border bg-white/5 px-[12px] text-[12.5px] text-text-3"><IconDiscord size={15} /></span>
+                <input className={PREFIX_FIELD} value={discordId ?? ""} onChange={(e) => setDiscordId(e.target.value)} placeholder="Discord ID (17-20 digits)" />
+              </div>
+              <p className="text-[11px] text-text-3">Paste your Discord user ID to link your account. Leave empty to unlink. Enable Developer Mode in Discord &rarr; Settings to copy it.</p>
+            </div>
+            <FormError msg={proErr} />
+            <FormOk msg={proOk} />
+            <div className="flex justify-end">
+              <button type="submit" className="btn btn-primary" disabled={proBusy}>
+                {proBusy ? <span className="btn-spinner" /> : null} Save profile
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <div className="flex flex-col gap-[20px]">
+          {/* security */}
+          <section className="card">
+            <div className="mb-[18px] flex items-center gap-[10px]">
+              <span className="stat-icon flex h-[34px] w-[34px] flex-none place-items-center rounded-[10px] border border-white/8 bg-white/4 text-brand"><IconKey size={16} /></span>
+              <div>
+                <h3 className="text-[15px] font-bold">Security</h3>
+                <p className="text-[11.5px] text-text-3">Change your panel password.</p>
+              </div>
+            </div>
+            <form onSubmit={changePassword} className="flex flex-col gap-[15px]">
+              <label className="flex flex-col gap-[7px]">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Current password</span>
+                <input className={FIELD} type="password" value={curPass} onChange={(e) => setCurPass(e.target.value)} required autoComplete="current-password" />
+              </label>
+              <div className="grid grid-cols-1 gap-[12px] sm:grid-cols-2">
+                <label className="flex flex-col gap-[7px]">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-text-3">New password</span>
+                  <input className={FIELD} type="password" value={newPass} onChange={(e) => setNewPass(e.target.value)} required minLength={6} autoComplete="new-password" />
+                </label>
+                <label className="flex flex-col gap-[7px]">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-text-3">Repeat new password</span>
+                  <input className={FIELD} type="password" value={repeatPass} onChange={(e) => setRepeatPass(e.target.value)} required autoComplete="new-password" />
+                </label>
+              </div>
+              <FormError msg={pwErr} />
+              <FormOk msg={pwOk} />
+              <div className="flex justify-end">
+                <button type="submit" className="btn btn-primary" disabled={pwBusy}>
+                  {pwBusy ? <span className="btn-spinner" /> : null} Change password
+                </button>
+              </div>
+            </form>
+          </section>
+
+          {/* account info */}
+          <section className="card">
+            <div className="mb-[14px] flex items-center gap-[10px]">
+              <span className="stat-icon flex h-[34px] w-[34px] flex-none place-items-center rounded-[10px] border border-white/8 bg-white/4 text-brand"><IconLock size={16} /></span>
+              <div>
+                <h3 className="text-[15px] font-bold">Account details</h3>
+                <p className="text-[11.5px] text-text-3">Fixed identifiers for your account.</p>
+              </div>
+            </div>
+            <dl className="flex flex-col divide-y divide-[rgba(255,255,255,0.06)]">
+              <InfoRow label="Email" value={user?.email ?? "—"} />
+              <InfoRow label="Role" value={user?.role === "admin" ? "Administrator" : "Standard user"} />
+              <InfoRow label="User ID" value={user?.id ?? "—"} mono />
+            </dl>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-[11px]">
+      <dt className="text-[11px] font-bold uppercase tracking-wider text-text-3">{label}</dt>
+      <dd className={`min-w-0 truncate text-[13px] ${mono ? "font-mono text-text-2" : "text-white"}`}>{value}</dd>
+    </div>
   );
 }

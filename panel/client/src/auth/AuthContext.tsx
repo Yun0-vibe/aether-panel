@@ -5,6 +5,10 @@ export interface User {
   id: string;
   email: string;
   role: string;
+  displayName?: string;
+  bio?: string;
+  discordId?: string | null;
+  createdAt?: number;
 }
 
 interface AuthState {

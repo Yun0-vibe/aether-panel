@@ -6,7 +6,7 @@ import { useToast } from "../components/Toasts";
 import { IconClose, IconPlus, IconUsers, IconLayers, IconServer, IconActivity, IconZap, IconShield } from "../components/Icons";
 import { RoleBadge } from "../components/RoleBadge";
 
-interface AdminUser extends User { createdAt?: string; }
+type AdminUser = User;
 interface Node { id: string; name: string; host: string; daemonPort: number; token?: string; }
 interface AdminServer extends Omit<ServerSummary, "node"> {
   env?: Record<string, string>; memoryMB?: number; cpus?: number; ports?: EggPort[];

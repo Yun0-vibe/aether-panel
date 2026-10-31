@@ -60,6 +60,22 @@ func (api *daemonAPI) getServer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"server": serverView{spec, status}})
 }
 
+func (api *daemonAPI) statsServer(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, ok := api.store.get(id); !ok {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
+	defer cancel()
+	stats, err := api.statsSnapshot(ctx, id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"stats": stats})
+}
+
 func (api *daemonAPI) powerServer(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	var body struct {
