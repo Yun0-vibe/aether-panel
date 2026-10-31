@@ -159,8 +159,8 @@ ul {
   inset: 0;
   z-index: -1;
   overflow: hidden;
-  background: radial-gradient(1200px 700px at 78% -10%, #0d1836 0%, transparent 60%),
-    radial-gradient(900px 600px at 8% 108%, #130a2b 0%, transparent 62%), var(--bg);
+  background: radial-gradient(1100px 640px at 78% -10%, rgba(13, 24, 54, 0.5) 0%, transparent 72%),
+    radial-gradient(860px 560px at 8% 108%, rgba(19, 10, 43, 0.45) 0%, transparent 74%), var(--bg);
 }
 
 .app-orb {

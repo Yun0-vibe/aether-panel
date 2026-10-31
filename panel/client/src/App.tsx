@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
 import { RequireAdmin, RequireAuth } from "./auth/Guards";
 import { ToastProvider } from "./components/Toasts";
+import { AdminShell } from "./components/AdminShell";
 import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { LoginPage, RegisterPage } from "./pages/AuthPages";
@@ -10,7 +11,7 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { Dashboard } from "./pages/Dashboard";
 import { ServersPage } from "./pages/Servers";
 import { ServerDetail } from "./pages/ServerDetail";
-import { AdminPage } from "./pages/Admin";
+import { AdminOverview, NodesTab, ServersTab, UsersTab } from "./pages/Admin";
 
 export default function App() {
   const [navOpen, setNavOpen] = useState(false);
@@ -66,9 +67,39 @@ export default function App() {
               path="/admin"
               element={
                 <RequireAdmin>
-                  <Shell>
-                    <AdminPage />
-                  </Shell>
+                  <AdminShell>
+                    <AdminOverview />
+                  </AdminShell>
+                </RequireAdmin>
+              }
+            />
+            <Route
+              path="/admin/users"
+              element={
+                <RequireAdmin>
+                  <AdminShell>
+                    <UsersTab />
+                  </AdminShell>
+                </RequireAdmin>
+              }
+            />
+            <Route
+              path="/admin/nodes"
+              element={
+                <RequireAdmin>
+                  <AdminShell>
+                    <NodesTab />
+                  </AdminShell>
+                </RequireAdmin>
+              }
+            />
+            <Route
+              path="/admin/servers"
+              element={
+                <RequireAdmin>
+                  <AdminShell>
+                    <ServersTab />
+                  </AdminShell>
                 </RequireAdmin>
               }
             />

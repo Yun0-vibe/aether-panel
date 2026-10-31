@@ -80,10 +80,6 @@ export function Sidebar({ open = false, onNavigate }: { open?: boolean; onNaviga
               <IconShield size={18} className="flex-none opacity-80" />
               <span>Admin portal</span>
             </NavLink>
-            <NavLink to="/admin?tab=nodes" className={linkCls} onClick={onNavigate}>
-              <IconUsers size={18} className="flex-none opacity-80" />
-              <span>Nodes &amp; users</span>
-            </NavLink>
           </>
         )}
       </nav>

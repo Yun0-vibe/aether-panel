@@ -95,7 +95,7 @@ function AuthShell({ children, eyebrow, title, sub }: { children: React.ReactNod
             <li className="flex items-center gap-[12px] text-[13.5px] font-medium text-text-2"><span className="auth-feature-icon flex-none w-[32px] h-[32px] grid place-items-center rounded-[10px] text-brand bg-brand/9 border border-brand/22"><IconServer size={16} className="flex-none" /></span>Multi-node provisioning with isolated containers</li>
             <li className="flex items-center gap-[12px] text-[13.5px] font-medium text-text-2"><span className="auth-feature-icon flex-none w-[32px] h-[32px] grid place-items-center rounded-[10px] text-brand bg-brand/9 border border-brand/22"><IconShield size={16} className="flex-none" /></span>Role-based access, file manager and one-click backups</li>
           </ul>
-          <div className="auth-brand-foot flex gap-[34px] pt-[26px] border-t border-border">
+          <div className="auth-brand-foot flex w-fit gap-10 rounded-2xl border border-border bg-white/3 px-7 py-5 backdrop-blur-sm">
             <span className="auth-stat flex flex-col gap-[3px]"><strong className="font-display text-[21px] font-bold text-white">99.9%</strong><span className="text-[10.5px] font-bold tracking-[0.13em] uppercase text-text-3">uptime target</span></span>
             <span className="auth-stat flex flex-col gap-[3px]"><strong className="font-display text-[21px] font-bold text-white">&lt;50ms</strong><span className="text-[10.5px] font-bold tracking-[0.13em] uppercase text-text-3">console latency</span></span>
             <span className="auth-stat flex flex-col gap-[3px]"><strong className="font-display text-[21px] font-bold text-white">24/7</strong><span className="text-[10.5px] font-bold tracking-[0.13em] uppercase text-text-3">autonomous ops</span></span>
@@ -103,7 +103,7 @@ function AuthShell({ children, eyebrow, title, sub }: { children: React.ReactNod
         </div>
       </section>
 
-      <section className="auth-panel relative z-1 flex flex-col items-center justify-center gap-[20px] p-[42px] p-[34px]">
+      <section className="auth-panel relative z-1 flex flex-col items-center justify-center gap-[20px] bg-[radial-gradient(900px_520px_at_70%_115%,rgba(59,130,246,0.10)_0%,transparent_62%),radial-gradient(700px_460px_at_20%_-10%,rgba(168,85,247,0.08)_0%,transparent_60%)] bg-gradient-to-b from-[rgba(8,12,22,0.42)] to-[rgba(3,6,14,0.92)] p-8 md:p-12">
         <div className="auth-card w-full max-w-[408px] p-[32px] rounded-[24px] bg-[rgba(13,19,34,0.72)] backdrop-blur-[26px] -webkit-backdrop-blur-[26px] border border-white/12 shadow-[0_40px_80px_-40px_rgba(0,0,0,0.95)] animate-[fade-up_560ms_var(--ease)_both]">
           <span className="auth-eyebrow block mb-[20px] text-[10.5px] font-bold tracking-[0.2em] uppercase text-brand">{eyebrow}</span>
           {children}
