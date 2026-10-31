@@ -5,6 +5,11 @@
 #
 #   bash scripts/rebuild.sh            # build everything
 #   bash scripts/rebuild.sh --start    # build and launch (panel :3000, daemon :8080)
+#
+# Optional Discord sign-in/linking: add to .env
+#   DISCORD_CLIENT_ID=...        (https://discord.com/developers/applications → OAuth2)
+#   DISCORD_CLIENT_SECRET=...
+#   DISCORD_REDIRECT_URI=...     (optional; defaults to <your-panel-url>/api/auth/discord/callback)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
