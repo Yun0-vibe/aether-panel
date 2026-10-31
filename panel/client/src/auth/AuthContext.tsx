@@ -8,6 +8,9 @@ export interface User {
   displayName?: string;
   bio?: string;
   discordId?: string | null;
+  discordUsername?: string | null;
+  discordAvatar?: string | null;
+  totpEnabled?: boolean;
   createdAt?: number;
 }
 
@@ -84,7 +87,7 @@ export class ApiError extends Error {
 
 export async function api<T = unknown>(
   path: string,
-  opts: { method?: string; body?: unknown } = {}
+  opts: { method?: string; body?: unknown; noRedirect?: boolean } = {}
 ): Promise<T> {
   const res = await fetch(path, {
     credentials: "include",
@@ -92,7 +95,7 @@ export async function api<T = unknown>(
     headers: opts.body !== undefined ? { "Content-Type": "application/json" } : undefined,
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
   });
-  if (res.status === 401) {
+  if (res.status === 401 && !opts.noRedirect) {
     window.location.href = "/login";
     throw new ApiError(401, { error: "Session expired" });
   }

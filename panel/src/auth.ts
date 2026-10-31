@@ -84,6 +84,9 @@ export function publicUser(u: User) {
     displayName: u.display_name ?? u.email.split("@")[0],
     bio: u.bio ?? "",
     discordId: u.discord_id ?? null,
+    discordUsername: u.discord_username ?? null,
+    discordAvatar: u.discord_avatar ?? null,
+    totpEnabled: Boolean(u.totp_enabled),
     createdAt: u.created_at,
   };
 }

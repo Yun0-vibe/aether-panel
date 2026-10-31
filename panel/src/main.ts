@@ -20,6 +20,14 @@ import { daemonFetch, specFromServer, statuses } from "./daemon.js";
 import { db, getBranding, setBranding, type Egg, type Nest, type Node, type Server, type User, CUSTOM_EGG_ID } from "./db.js";
 import { registerFilesBackups } from "./files-backups.js";
 import { startScheduler } from "./scheduler.js";
+import { newTotpSecret, otpauthUri, verifyTotp } from "./totp.js";
+import QRCode from "qrcode";
+import {
+  generateAuthenticationOptions,
+  generateRegistrationOptions,
+  verifyAuthenticationResponse,
+  verifyRegistrationResponse,
+} from "@simplewebauthn/server";
 
 const app = Fastify({ logger: false, trustProxy: true });
 app.register(cookie);
@@ -30,6 +38,35 @@ const id = () => crypto.randomUUID();
 const now = () => Date.now();
 
 type Authed = FastifyRequest & { user: User };
+
+// Short-lived MFA handoff (password ok, waiting for the TOTP code) and
+// WebAuthn challenge storage. In-memory is fine: they live for minutes.
+const mfaPending = new Map<string, { userId: string; exp: number }>();
+const regChallenges = new Map<string, string>(); // userId -> challenge
+const authChallenges = new Map<string, string>(); // challenge -> challenge (set equality)
+const oauthStates = new Map<string, { userId?: string; exp: number }>();
+
+function pruneMaps() {
+  const t = Date.now();
+  for (const [k, v] of mfaPending) if (v.exp < t) mfaPending.delete(k);
+  for (const [k, v] of oauthStates) if (v.exp < t) oauthStates.delete(k);
+}
+
+function originOf(req: FastifyRequest): string {
+  const cfg = process.env.AETHER_PUBLIC_ORIGIN?.replace(/\/+$/, "");
+  if (cfg) return cfg;
+  const proto = (req.headers["x-forwarded-proto"] as string) || req.protocol || "http";
+  const host = (req.headers["x-forwarded-host"] as string) || req.headers.host || "localhost:3000";
+  return `${proto}://${host}`;
+}
+
+function rpIdOf(origin: string): string {
+  try {
+    return new URL(origin).hostname; // WebAuthn rpID is a bare hostname, no port
+  } catch {
+    return "localhost";
+  }
+}
 
 // ---------------------------------------------------------------- auth
 
@@ -68,12 +105,37 @@ app.post("/api/auth/register", async (req, reply) => {
 });
 
 app.post("/api/auth/login", async (req, reply) => {
-  const body = (req.body ?? {}) as { email?: string; password?: string };
-  const email = (body.email ?? "").trim().toLowerCase();
-  const row = db.prepare("SELECT * FROM users WHERE email = ?").get(email) as User | undefined;
-  if (!row || !verifyPassword(body.password ?? "", row.password_hash)) {
-    return reply.status(401).send({ error: "invalid credentials" });
+  const body = (req.body ?? {}) as { email?: string; password?: string; totp?: string; mfaToken?: string };
+  let row: User | undefined;
+
+  // Two paths into this endpoint: full credentials, or a short-lived
+  // mfaToken handed out when the password step already succeeded.
+  if (body.mfaToken) {
+    const pending = mfaPending.get(body.mfaToken);
+    if (!pending || pending.exp < Date.now()) {
+      return reply.status(401).send({ error: "mfa session expired — sign in again" });
+    }
+    mfaPending.delete(body.mfaToken);
+    row = db.prepare("SELECT * FROM users WHERE id = ?").get(pending.userId) as User | undefined;
+  } else {
+    const email = (body.email ?? "").trim().toLowerCase();
+    row = db.prepare("SELECT * FROM users WHERE email = ?").get(email) as User | undefined;
+    if (!row || !verifyPassword(body.password ?? "", row.password_hash)) {
+      return reply.status(401).send({ error: "invalid credentials" });
+    }
   }
+  if (row?.totp_enabled) {
+    const code = String(body.totp ?? "").trim();
+    if (!code) {
+      const token = crypto.randomBytes(16).toString("hex");
+      mfaPending.set(token, { userId: row.id, exp: Date.now() + 5 * 60_000 });
+      return reply.status(401).send({ error: "totp_required", mfaToken: token, totpRequired: true });
+    }
+    if (!verifyTotp(row.totp_secret ?? "", code)) {
+      return reply.status(401).send({ error: "invalid authenticator code" });
+    }
+  }
+  if (!row) return reply.status(401).send({ error: "invalid credentials" });
   createSession(reply, row.id);
   return { user: publicUser(row) };
 });
@@ -87,6 +149,283 @@ app.get("/api/auth/me", async (req, reply) => {
   const user = lookupUser(req);
   if (!user) return reply.status(401).send({ error: "unauthorized" });
   return { user: publicUser(user) };
+});
+
+/* ------------------------------------------------------------ discord oauth */
+
+function discordConfigured(): boolean {
+  return Boolean(process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET);
+}
+
+app.get("/api/auth/discord/status", async () => {
+  return { enabled: discordConfigured() };
+});
+
+// Start the OAuth flow. If a session is present it links that account,
+// otherwise it is a sign-in attempt resolved by discord_id.
+app.get("/api/auth/discord", async (req, reply) => {
+  if (!discordConfigured()) {
+    return reply.status(501).send({ error: "Discord OAuth is not configured — set DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET in .env" });
+  }
+  pruneMaps();
+  const me = lookupUser(req);
+  const state = crypto.randomBytes(24).toString("hex");
+  oauthStates.set(state, { userId: me?.id, exp: Date.now() + 10 * 60_000 });
+  const params = new URLSearchParams({
+    client_id: process.env.DISCORD_CLIENT_ID!,
+    redirect_uri: process.env.DISCORD_REDIRECT_URI || `${originOf(req)}/api/auth/discord/callback`,
+    response_type: "code",
+    scope: "identify",
+    state,
+    prompt: "consent",
+  });
+  return reply.redirect(`https://discord.com/oauth2/authorize?${params}`, 302);
+});
+
+app.get("/api/auth/discord/callback", async (req, reply) => {
+  const origin = originOf(req);
+  if (!discordConfigured()) return reply.redirect(`${origin}/login?discord=unconfigured`, 302);
+  const q = (req.query ?? {}) as { code?: string; state?: string; error?: string };
+  const state = q.state ?? "";
+  const entry = oauthStates.get(state);
+  oauthStates.delete(state);
+  if (q.error || !q.code || !entry || entry.exp < Date.now()) {
+    return reply.redirect(`${origin}/login?discord=expired`, 302);
+  }
+  try {
+    const tokenRes = await fetch("https://discord.com/api/oauth2/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: process.env.DISCORD_CLIENT_ID!,
+        client_secret: process.env.DISCORD_CLIENT_SECRET!,
+        grant_type: "authorization_code",
+        code: q.code,
+        redirect_uri: process.env.DISCORD_REDIRECT_URI || `${origin}/api/auth/discord/callback`,
+      }),
+    });
+    if (!tokenRes.ok) return reply.redirect(`${origin}/login?discord=token`, 302);
+    const access = ((await tokenRes.json()) as { access_token?: string }).access_token ?? "";
+    const meRes = await fetch("https://discord.com/api/users/@me", {
+      headers: { Authorization: `Bearer ${access}` },
+    });
+    if (!meRes.ok) return reply.redirect(`${origin}/login?discord=profile`, 302);
+    const du = (await meRes.json()) as { id: string; username: string; discriminator?: string; avatar?: string | null };
+    const avatar = du.avatar ? `https://cdn.discordapp.com/avatars/${du.id}/${du.avatar}.png?size=64` : null;
+    const handle = du.discriminator && du.discriminator !== "0" ? `${du.username}#${du.discriminator}` : du.username;
+
+    if (entry.userId) {
+      // LINK: attach discord identity to the signed-in user.
+      const clash = db.prepare("SELECT id FROM users WHERE discord_id = ? AND id != ?").get(du.id, entry.userId);
+      if (clash) return reply.redirect(`${origin}/profile?discord=taken`, 302);
+      db.prepare("UPDATE users SET discord_id = ?, discord_username = ?, discord_avatar = ? WHERE id = ?").run(du.id, handle, avatar, entry.userId);
+      return reply.redirect(`${origin}/profile?discord=linked`, 302);
+    }
+
+    // SIGN-IN: find the account this discord identity belongs to.
+    const linked = db.prepare("SELECT * FROM users WHERE discord_id = ?").get(du.id) as User | undefined;
+    if (!linked) return reply.redirect(`${origin}/login?discord=notlinked`, 302);
+    createSession(reply, linked.id);
+    return reply.redirect(`${origin}/`, 302);
+  } catch {
+    return reply.redirect(`${origin}/login?discord=error`, 302);
+  }
+});
+
+app.post("/api/account/discord/unlink", async (req, reply) => {
+  if (!requireAuth(req as Authed, reply)) return;
+  const user = (req as Authed).user;
+  db.prepare("UPDATE users SET discord_id = NULL, discord_username = NULL, discord_avatar = NULL WHERE id = ?").run(user.id);
+  const fresh = db.prepare("SELECT * FROM users WHERE id = ?").get(user.id) as User;
+  return { user: publicUser(fresh) };
+});
+
+/* ------------------------------------------------------------ totp 2fa */
+
+app.post("/api/account/totp/setup", async (req, reply) => {
+  if (!requireAuth(req as Authed, reply)) return;
+  const user = (req as Authed).user;
+  if (user.totp_enabled) return reply.status(400).send({ error: "2FA is already enabled" });
+  const secret = newTotpSecret();
+  db.prepare("UPDATE users SET totp_secret = ?, totp_enabled = 0 WHERE id = ?").run(secret, user.id);
+  const branding = getBranding();
+  const uri = otpauthUri({ label: user.email, secret, issuer: branding.panelName });
+  return { secret, otpauth: uri, qr: await QRCode.toDataURL(uri, { margin: 1, width: 220, color: { dark: "#e8eefc", light: "#0d1424" } }) };
+});
+
+app.post("/api/account/totp/enable", async (req, reply) => {
+  if (!requireAuth(req as Authed, reply)) return;
+  const user = (req as Authed).user;
+  const body = (req.body ?? {}) as { code?: string };
+  if (!user.totp_secret) return reply.status(400).send({ error: "run setup first" });
+  if (user.totp_enabled) return reply.status(400).send({ error: "2FA is already enabled" });
+  if (!verifyTotp(user.totp_secret, String(body.code ?? ""))) {
+    return reply.status(401).send({ error: "invalid code — check your authenticator" });
+  }
+  db.prepare("UPDATE users SET totp_enabled = 1 WHERE id = ?").run(user.id);
+  const fresh = db.prepare("SELECT * FROM users WHERE id = ?").get(user.id) as User;
+  return { user: publicUser(fresh) };
+});
+
+app.post("/api/account/totp/disable", async (req, reply) => {
+  if (!requireAuth(req as Authed, reply)) return;
+  const user = (req as Authed).user;
+  const body = (req.body ?? {}) as { password?: string };
+  if (!verifyPassword(String(body.password ?? ""), user.password_hash)) {
+    return reply.status(403).send({ error: "wrong password" });
+  }
+  db.prepare("UPDATE users SET totp_secret = NULL, totp_enabled = 0 WHERE id = ?").run(user.id);
+  const fresh = db.prepare("SELECT * FROM users WHERE id = ?").get(user.id) as User;
+  return { user: publicUser(fresh) };
+});
+
+/* ------------------------------------------------------------ passkeys (webauthn) */
+
+interface PasskeyRow {
+  id: string;
+  user_id: string;
+  credential_id: string;
+  public_key: string;
+  counter: number;
+  device_type: string;
+  backed_up: number;
+  transports: string;
+  created_at: number;
+  last_used_at: number | null;
+}
+
+function passkeyView(p: PasskeyRow) {
+  return {
+    id: p.id,
+    name: `Key · ${p.credential_id.slice(-10)}`,
+    deviceType: p.device_type,
+    backedUp: Boolean(p.backed_up),
+    createdAt: p.created_at,
+    lastUsedAt: p.last_used_at,
+  };
+}
+
+app.get("/api/account/passkeys", async (req, reply) => {
+  if (!requireAuth(req as Authed, reply)) return;
+  const user = (req as Authed).user;
+  const rows = db.prepare("SELECT * FROM passkeys WHERE user_id = ? ORDER BY created_at DESC").all(user.id) as PasskeyRow[];
+  return { passkeys: rows.map(passkeyView) };
+});
+
+app.post("/api/account/passkeys/options", async (req, reply) => {
+  if (!requireAuth(req as Authed, reply)) return;
+  const user = (req as Authed).user;
+  const origin = originOf(req);
+  const rpID = rpIdOf(origin);
+  const existing = db.prepare("SELECT credential_id, transports FROM passkeys WHERE user_id = ?").all(user.id) as PasskeyRow[];
+  const options = await generateRegistrationOptions({
+    rpName: `${getBranding().panelName} passkey`,
+    rpID,
+    userID: new TextEncoder().encode(user.id),
+    userName: user.email,
+    attestationType: "none",
+    excludeCredentials: existing.map((p) => ({
+      id: p.credential_id,
+      transports: p.transports ? (p.transports.split(",") as ("usb" | "ble" | "nfc" | "internal" | "hybrid")[]) : undefined,
+    })),
+    authenticatorSelection: { residentKey: "preferred", userVerification: "required" },
+  });
+  regChallenges.set(user.id, options.challenge);
+  return { options, origin, rpID };
+});
+
+app.post("/api/account/passkeys/register", async (req, reply) => {
+  if (!requireAuth(req as Authed, reply)) return;
+  const user = (req as Authed).user;
+  const origin = originOf(req);
+  const expectedChallenge = regChallenges.get(user.id);
+  if (!expectedChallenge) return reply.status(400).send({ error: "no registration in progress" });
+  try {
+    const verification = await verifyRegistrationResponse({
+      response: (req.body as any).response,
+      expectedChallenge,
+      expectedOrigin: origin,
+      expectedRPID: rpIdOf(origin),
+      requireUserVerification: true,
+    });
+    if (!verification.verified || !verification.registrationInfo) {
+      return reply.status(400).send({ error: "passkey registration failed" });
+    }
+    const { credential, credentialDeviceType, credentialBackedUp } = verification.registrationInfo;
+    const transports = (verification.registrationInfo as { credentialTransports?: string[] }).credentialTransports ?? [];
+    db.prepare(
+      `INSERT INTO passkeys (id, user_id, credential_id, public_key, counter, device_type, backed_up, transports, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      id(),
+      user.id,
+      credential.id,
+      Buffer.from(credential.publicKey).toString("base64"),
+      credential.counter,
+      credentialDeviceType,
+      credentialBackedUp ? 1 : 0,
+      (transports as string[]).join(","),
+      now(),
+    );
+    regChallenges.delete(user.id);
+    const rows = db.prepare("SELECT * FROM passkeys WHERE user_id = ? ORDER BY created_at DESC").all(user.id) as PasskeyRow[];
+    return { verified: true, passkeys: rows.map(passkeyView) };
+  } catch (e) {
+    return reply.status(400).send({ error: e instanceof Error ? e.message : "passkey registration failed" });
+  }
+});
+
+app.delete("/api/account/passkeys/:pid", async (req, reply) => {
+  if (!requireAuth(req as Authed, reply)) return;
+  const user = (req as Authed).user;
+  const row = db.prepare("SELECT * FROM passkeys WHERE id = ? AND user_id = ?").get((req.params as any).pid, user.id) as PasskeyRow | undefined;
+  if (!row) return reply.status(404).send({ error: "passkey not found" });
+  db.prepare("DELETE FROM passkeys WHERE id = ?").run(row.id);
+  const rows = db.prepare("SELECT * FROM passkeys WHERE user_id = ? ORDER BY created_at DESC").all(user.id) as PasskeyRow[];
+  return { passkeys: rows.map(passkeyView) };
+});
+
+// Passwordless sign-in challenge (discoverable credentials — no email needed).
+app.post("/api/auth/passkey/options", async (req, reply) => {
+  const origin = originOf(req);
+  const options = await generateAuthenticationOptions({
+    rpID: rpIdOf(origin),
+    userVerification: "required",
+  });
+  authChallenges.set(options.challenge, options.challenge);
+  setTimeout(() => authChallenges.delete(options.challenge), 5 * 60_000);
+  return { options, origin, rpID: rpIdOf(origin) };
+});
+
+app.post("/api/auth/passkey/login", async (req, reply) => {
+  const origin = originOf(req);
+  const rpID = rpIdOf(origin);
+  const body = (req.body ?? {}) as { response?: any };
+  if (!body.response?.id) return reply.status(400).send({ error: "missing response" });
+  const row = db.prepare("SELECT * FROM passkeys WHERE credential_id = ?").get(body.response.id) as PasskeyRow | undefined;
+  if (!row) return reply.status(401).send({ error: "unknown passkey" });
+  try {
+    const verification = await verifyAuthenticationResponse({
+      response: body.response,
+      expectedChallenge: authChallenges.get(body.response.response?.challenge ?? "") ?? "",
+      expectedOrigin: origin,
+      expectedRPID: rpID,
+      credential: {
+        id: row.credential_id,
+        publicKey: new Uint8Array(Buffer.from(row.public_key, "base64")),
+        counter: row.counter,
+      },
+      requireUserVerification: true,
+    });
+    if (!verification.verified) return reply.status(401).send({ error: "passkey verification failed" });
+    authChallenges.delete(body.response.response?.challenge ?? "");
+    db.prepare("UPDATE passkeys SET counter = ?, last_used_at = ? WHERE id = ?").run(verification.authenticationInfo.newCounter, now(), row.id);
+    createSession(reply, row.user_id);
+    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(row.user_id) as User;
+    return { user: publicUser(user) };
+  } catch (e) {
+    return reply.status(400).send({ error: e instanceof Error ? e.message : "passkey verification failed" });
+  }
 });
 
 // ---------------------------------------------------------------- account self-service
@@ -157,6 +496,10 @@ function serverView(s: Server, node: Node | null, status: string) {
 }
 
 /* ---------------------------------------------------------------- branding */
+
+app.get("/healthz", async () => {
+  return { ok: true, at: Date.now() };
+});
 
 app.get("/api/branding", async () => {
   return { branding: getBranding() };

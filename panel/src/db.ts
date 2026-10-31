@@ -65,7 +65,33 @@ CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS passkeys (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  credential_id TEXT UNIQUE NOT NULL,
+  public_key TEXT NOT NULL,
+  counter INTEGER NOT NULL DEFAULT 0,
+  device_type TEXT NOT NULL DEFAULT 'singleDevice',
+  backed_up INTEGER NOT NULL DEFAULT 0,
+  transports TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  last_used_at INTEGER
+);
 `);
+
+// Existing databases may predate the 2FA / Discord-oauth columns.
+try {
+  db.exec("ALTER TABLE users ADD COLUMN totp_secret TEXT");
+} catch { /* column exists */ }
+try {
+  db.exec("ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0");
+} catch { /* column exists */ }
+try {
+  db.exec("ALTER TABLE users ADD COLUMN discord_username TEXT");
+} catch { /* column exists */ }
+try {
+  db.exec("ALTER TABLE users ADD COLUMN discord_avatar TEXT");
+} catch { /* column exists */ }
 
 export interface Egg {
   id: string;
@@ -271,6 +297,10 @@ export interface User {
   display_name?: string | null;
   bio?: string | null;
   discord_id?: string | null;
+  discord_username?: string | null;
+  discord_avatar?: string | null;
+  totp_secret?: string | null;
+  totp_enabled?: number | null;
 }
 
 export interface Node {
