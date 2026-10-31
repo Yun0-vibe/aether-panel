@@ -190,7 +190,6 @@ export function seedNests() {
   );
   for (const n of NEST_SEED) ins.run(n.id, n.name, n.sort);
 }
-seedNests();
 
 export function seedEggs() {
   const nestFor = (eggId: string) => (eggId.startsWith("minecraft") ? "minecraft" : "game-servers");
@@ -205,7 +204,6 @@ export function seedEggs() {
     ins.run(e.id, e.name, e.description, e.image, e.ports, e.env, e.memory_mb, e.cpus, e.sort, nestFor(e.id));
   }
 }
-seedEggs();
 
 export interface User {
   id: string;
@@ -281,12 +279,16 @@ try {
   /* column exists */
 }
 
-// Eggs may predate nests — backfill every legacy egg into a sensible nest.
+// Eggs may predate nests — add the column first...
 try {
   db.exec("ALTER TABLE eggs ADD COLUMN nest_id TEXT NOT NULL DEFAULT ''");
 } catch {
   /* column exists */
 }
+
+// nests must exist AND be seeded before the backfill picks a nest id.
+seedNests();
+
 {
   const nestIds = new Set(
     (db.prepare("SELECT id FROM nests").all() as Nest[]).map((n) => n.id),
@@ -301,3 +303,5 @@ try {
     }
   }
 }
+
+seedEggs();
