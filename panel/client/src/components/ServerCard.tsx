@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { gameAddress } from "../auth/AuthContext";
 import type { ServerSummary } from "../auth/AuthContext";
 import { useToast } from "../components/Toasts";
 import { IconActivity, IconGlobe, IconHardDrive, IconCopy, IconCheck, IconServer, IconUsers } from "../components/Icons";
@@ -47,8 +48,7 @@ export function ServerCard({ server }: { server: ServerSummary }) {
   const name = gameName(server.image);
   const initials = name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
   const toast = useToast();
-  const host = server.node?.host;
-  const address = host && server.port != null ? `${host}:${server.port}` : null;
+  const address = gameAddress(server.node?.host, server.port);
 
   async function copyAddress(e: React.MouseEvent) {
     e.preventDefault();

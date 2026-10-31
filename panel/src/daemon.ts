@@ -5,6 +5,9 @@ const TIMEOUT = 15_000;
 const STATUS_TIMEOUT = 3_000;
 
 export function daemonBase(node: Node) {
+  // A host that is already a full URL (e.g. a Codespace forward like
+  // https://<name>-8080.app.github.dev) is used verbatim — no port appended.
+  if (/^https?:\/\//i.test(node.host)) return node.host;
   return `http://${node.host}:${node.daemon_port}`;
 }
 

@@ -128,6 +128,23 @@ export interface ServerSummary {
   node?: { name: string; host: string } | null;
 }
 
+/** Player-facing connect address for a game server. Regular nodes are
+ *  `hostname:port`. Full-URL hosts (Codespace forwards) get their port
+ *  segment rewritten, e.g. `desk-8080.app.github.dev` + 25565 becomes
+ *  `desk-25565.app.github.dev`. Returns null when unknown. */
+export function gameAddress(host: string | undefined | null, port: number | null | undefined): string | null {
+  if (!host || port == null) return null;
+  if (!/^https?:\/\//i.test(host)) return `${host}:${port}`;
+  try {
+    const hn = new URL(host).hostname;
+    // Codespace-style forwards: <name>-<port>.app.github.dev → swap the port
+    const segs = hn.replace(/-(\d+)(\.app\.github\.dev|\.gitpod\.io)$/i, `-${port}$2`);
+    return segs;
+  } catch {
+    return `${host}:${port}`;
+  }
+}
+
 export function useLogoutAndRedirect() {
   const { setUser } = useAuth();
   return useCallback(async () => {

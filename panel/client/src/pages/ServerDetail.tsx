@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, ApiError } from "../auth/AuthContext";
+import { api, ApiError, gameAddress } from "../auth/AuthContext";
 import type { ServerSummary } from "../auth/AuthContext";
 import { StatusBadge } from "../components/ServerCard";
 import { useToast } from "../components/Toasts";
@@ -110,10 +110,9 @@ function LiveStats({ id, runningStatus }: { id: string; runningStatus: boolean }
 }
 
 /** host:port chip with one-click copy-to-clipboard. */
-function CopyAddress({ host, port, label }: { host: string; port: string; label: string }) {
+function CopyAddress({ address, label }: { address: string; label: string }) {
   const [copied, setCopied] = useState(false);
   const toast = useToast();
-  const address = `${host}:${port}`;
 
   async function copy() {
     try {
@@ -273,9 +272,9 @@ export function ServerDetail() {
             <span className="detail-chip inline-flex items-center gap-[6px] px-[4px] py-[10px] rounded-lg bg-white/4 border border-border text-[11.5px] font-semibold text-text-2"><IconServer size={14} className="flex-none text-text-3" /><span className="trunc max-w-[260px]" title={server.image}>{server.image}</span></span>
             <span className="detail-chip inline-flex items-center gap-[6px] px-[4px] py-[10px] rounded-lg bg-white/4 border border-border text-[11.5px] font-semibold text-text-2"><IconActivity size={14} className="flex-none text-text-3" /><span>Node: {server.node?.name ?? server.nodeId}</span></span>
             {(() => {
-              const host = server.node?.host;
               const primary = server.port ?? server.ports?.find((p) => p.protocol === "tcp")?.port ?? null;
-              return host && primary ? <CopyAddress host={host} port={String(primary)} label="server address" /> : null;
+              const addr = gameAddress(server.node?.host, primary);
+              return addr ? <CopyAddress address={addr} label="server address" /> : null;
             })()}
             <StatusBadge status={status} />
           </div>
