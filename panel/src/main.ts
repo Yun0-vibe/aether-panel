@@ -43,13 +43,27 @@ type Authed = FastifyRequest & { user: User };
 // WebAuthn challenge storage. In-memory is fine: they live for minutes.
 const mfaPending = new Map<string, { userId: string; exp: number }>();
 const regChallenges = new Map<string, string>(); // userId -> challenge
-const authChallenges = new Map<string, string>(); // challenge -> challenge (set equality)
+const reauthTokens = new Map<string, { userId: string; exp: number }>();
+type AuthChallenge = { kind: "login" } | { kind: "reauth"; userId: string };
+const authChallenges = new Map<string, AuthChallenge>();
 const oauthStates = new Map<string, { userId?: string; exp: number }>();
+
+const REAUTH_TTL = 10 * 60_000;
 
 function pruneMaps() {
   const t = Date.now();
   for (const [k, v] of mfaPending) if (v.exp < t) mfaPending.delete(k);
   for (const [k, v] of oauthStates) if (v.exp < t) oauthStates.delete(k);
+  for (const [k, v] of reauthTokens) if (v.exp < t) reauthTokens.delete(k);
+}
+
+/** Sensitive operations (password change, viewing/managing passkeys) demand a
+ *  fresh step-up verification: passkey assertion or TOTP code (or password for
+ *  accounts with neither). */
+function reauthOk(req: FastifyRequest, user: User): boolean {
+  const tok = (req.headers["x-ae-reauth"] as string) || "";
+  const entry = reauthTokens.get(tok);
+  return Boolean(entry && entry.userId === user.id && entry.exp > Date.now());
 }
 
 function originOf(req: FastifyRequest): string {
@@ -308,6 +322,7 @@ function passkeyView(p: PasskeyRow) {
 app.get("/api/account/passkeys", async (req, reply) => {
   if (!requireAuth(req as Authed, reply)) return;
   const user = (req as Authed).user;
+  if (!reauthOk(req, user)) return reply.status(403).send({ error: "Verify with your passkey or authenticator to view passkeys", reauthRequired: true });
   const rows = db.prepare("SELECT * FROM passkeys WHERE user_id = ? ORDER BY created_at DESC").all(user.id) as PasskeyRow[];
   return { passkeys: rows.map(passkeyView) };
 });
@@ -315,6 +330,7 @@ app.get("/api/account/passkeys", async (req, reply) => {
 app.post("/api/account/passkeys/options", async (req, reply) => {
   if (!requireAuth(req as Authed, reply)) return;
   const user = (req as Authed).user;
+  if (!reauthOk(req, user)) return reply.status(403).send({ error: "Verify with your passkey or authenticator first", reauthRequired: true });
   const origin = originOf(req);
   const rpID = rpIdOf(origin);
   const existing = db.prepare("SELECT credential_id, transports FROM passkeys WHERE user_id = ?").all(user.id) as PasskeyRow[];
@@ -337,6 +353,7 @@ app.post("/api/account/passkeys/options", async (req, reply) => {
 app.post("/api/account/passkeys/register", async (req, reply) => {
   if (!requireAuth(req as Authed, reply)) return;
   const user = (req as Authed).user;
+  if (!reauthOk(req, user)) return reply.status(403).send({ error: "Verify with your passkey or authenticator first", reauthRequired: true });
   const origin = originOf(req);
   const expectedChallenge = regChallenges.get(user.id);
   if (!expectedChallenge) return reply.status(400).send({ error: "no registration in progress" });
@@ -378,6 +395,7 @@ app.post("/api/account/passkeys/register", async (req, reply) => {
 app.delete("/api/account/passkeys/:pid", async (req, reply) => {
   if (!requireAuth(req as Authed, reply)) return;
   const user = (req as Authed).user;
+  if (!reauthOk(req, user)) return reply.status(403).send({ error: "Verify with your passkey or authenticator first", reauthRequired: true });
   const row = db.prepare("SELECT * FROM passkeys WHERE id = ? AND user_id = ?").get((req.params as any).pid, user.id) as PasskeyRow | undefined;
   if (!row) return reply.status(404).send({ error: "passkey not found" });
   db.prepare("DELETE FROM passkeys WHERE id = ?").run(row.id);
@@ -392,7 +410,7 @@ app.post("/api/auth/passkey/options", async (req, reply) => {
     rpID: rpIdOf(origin),
     userVerification: "required",
   });
-  authChallenges.set(options.challenge, options.challenge);
+  authChallenges.set(options.challenge, { kind: "login" });
   setTimeout(() => authChallenges.delete(options.challenge), 5 * 60_000);
   return { options, origin, rpID: rpIdOf(origin) };
 });
@@ -407,7 +425,7 @@ app.post("/api/auth/passkey/login", async (req, reply) => {
   try {
     const verification = await verifyAuthenticationResponse({
       response: body.response,
-      expectedChallenge: authChallenges.get(body.response.response?.challenge ?? "") ?? "",
+      expectedChallenge: authChallenges.get(body.response.response?.challenge ?? "")?.kind === "login" ? (body.response.response?.challenge ?? "") : "",
       expectedOrigin: origin,
       expectedRPID: rpID,
       credential: {
@@ -426,6 +444,124 @@ app.post("/api/auth/passkey/login", async (req, reply) => {
   } catch (e) {
     return reply.status(400).send({ error: e instanceof Error ? e.message : "passkey verification failed" });
   }
+});
+
+/* ------------------------------------------------------------ step-up re-auth */
+
+// Which second factor this account can use for sensitive operations.
+app.get("/api/account/reauth/methods", async (req, reply) => {
+  if (!requireAuth(req as Authed, reply)) return;
+  const user = (req as Authed).user;
+  const pk = (db.prepare("SELECT COUNT(*) AS c FROM passkeys WHERE user_id = ?").get(user.id) as any).c as number;
+  return {
+    passkey: pk > 0,
+    totp: Boolean(user.totp_enabled),
+    password: true,
+  };
+});
+
+// For passkey step-up: an authentication challenge bound to this user's keys.
+app.post("/api/account/reauth/begin", async (req, reply) => {
+  if (!requireAuth(req as Authed, reply)) return;
+  const user = (req as Authed).user;
+  const origin = originOf(req);
+  const creds = db.prepare("SELECT credential_id FROM passkeys WHERE user_id = ?").all(user.id) as PasskeyRow[];
+  const options = await generateAuthenticationOptions({
+    rpID: rpIdOf(origin),
+    userVerification: "required",
+    allowCredentials: creds.map((p) => ({ id: p.credential_id })),
+  });
+  authChallenges.set(options.challenge, { kind: "reauth", userId: user.id });
+  setTimeout(() => authChallenges.delete(options.challenge), 5 * 60_000);
+  return { options, origin, rpID: rpIdOf(origin) };
+});
+
+// Verify step-up: passkey response, TOTP code, or password. Returns a
+// short-lived reauth token the client sends back via the X-Ae-Reauth header.
+app.post("/api/account/reauth/verify", async (req, reply) => {
+  if (!requireAuth(req as Authed, reply)) return;
+  const user = (req as Authed).user;
+  const body = (req.body ?? {}) as { response?: any; totp?: string; password?: string };
+  let ok = false;
+  try {
+    if (body.response?.id) {
+      const row = db.prepare("SELECT * FROM passkeys WHERE credential_id = ?").get(body.response.id) as PasskeyRow | undefined;
+      if (row && row.user_id === user.id) {
+        const challenge = body.response.response?.challenge ?? "";
+        const expected = authChallenges.get(challenge);
+        if (expected?.kind !== "reauth" || expected.userId !== user.id) {
+          return reply.status(401).send({ error: "expired verification — try again" });
+        }
+        const verification = await verifyAuthenticationResponse({
+          response: body.response,
+          expectedChallenge: challenge,
+          expectedOrigin: originOf(req),
+          expectedRPID: rpIdOf(originOf(req)),
+          credential: {
+            id: row.credential_id,
+            publicKey: new Uint8Array(Buffer.from(row.public_key, "base64")),
+            counter: row.counter,
+          },
+          requireUserVerification: true,
+        });
+        ok = verification.verified;
+        if (ok) {
+          db.prepare("UPDATE passkeys SET counter = ?, last_used_at = ? WHERE id = ?").run(verification.authenticationInfo.newCounter, now(), row.id);
+        }
+      }
+    } else if (body.totp) {
+      ok = Boolean(user.totp_enabled) && verifyTotp(user.totp_secret ?? "", String(body.totp));
+      if (!ok) return reply.status(403).send({ error: "invalid authenticator code" });
+    } else if (body.password) {
+      ok = verifyPassword(String(body.password), user.password_hash);
+      if (!ok) return reply.status(403).send({ error: "incorrect password" });
+    }
+  } catch (e) {
+    return reply.status(400).send({ error: e instanceof Error ? e.message : "verification failed" });
+  }
+  if (!ok) return reply.status(403).send({ error: "verification failed" });
+  const token = crypto.randomBytes(24).toString("hex");
+  reauthTokens.set(token, { userId: user.id, exp: Date.now() + REAUTH_TTL });
+  return { reauthToken: token, expiresIn: REAUTH_TTL };
+});
+
+/* ------------------------------------------------------------ active sessions */
+
+app.get("/api/account/sessions", async (req, reply) => {
+  if (!requireAuth(req as Authed, reply)) return;
+  const user = (req as Authed).user;
+  const currentToken = req.cookies[COOKIE];
+  const rows = db
+    .prepare("SELECT token, expires_at FROM sessions WHERE user_id = ? AND expires_at > ? ORDER BY expires_at DESC")
+    .all(user.id, Date.now()) as Array<{ token: string; expires_at: number }>;
+  return {
+    sessions: rows.map((s) => ({
+      id: s.token.slice(0, 8),
+      tail: s.token.slice(-6),
+      expiresAt: s.expires_at,
+      current: s.token === currentToken,
+    })),
+  };
+});
+
+app.delete("/api/account/sessions/:id", async (req, reply) => {
+  if (!requireAuth(req as Authed, reply)) return;
+  const user = (req as Authed).user;
+  const idPart = String((req.params as any).id);
+  if (idPart.length !== 8) return reply.status(400).send({ error: "bad session id" });
+  const rows = db.prepare("SELECT token FROM sessions WHERE user_id = ? AND expires_at > ?").all(user.id, Date.now()) as Array<{ token: string }>;
+  const victim = rows.find((s) => s.token.startsWith(idPart));
+  if (!victim) return reply.status(404).send({ error: "session not found" });
+  db.prepare("DELETE FROM sessions WHERE token = ?").run(victim.token);
+  return { ok: true };
+});
+
+app.post("/api/account/sessions/revoke-others", async (req, reply) => {
+  if (!requireAuth(req as Authed, reply)) return;
+  const user = (req as Authed).user;
+  const currentToken = req.cookies[COOKIE];
+  db.prepare("DELETE FROM sessions WHERE user_id = ? AND token != ?").run(user.id, currentToken ?? "");
+  return { ok: true };
 });
 
 // ---------------------------------------------------------------- account self-service
@@ -461,15 +597,27 @@ app.post("/api/account/password", async (req, reply) => {
   if (!requireAuth(req as Authed, reply)) return;
   const user = (req as Authed).user;
   const body = (req.body ?? {}) as Record<string, unknown>;
-  const current = String(body.currentPassword ?? "");
   const next = String(body.newPassword ?? "");
-  if (!current || !next) return reply.status(400).send({ error: "Both passwords are required" });
   if (next.length < 6) return reply.status(400).send({ error: "New password must be at least 6 characters" });
-  if (current === next) return reply.status(400).send({ error: "New password must differ from the current one" });
 
   const row = db.prepare("SELECT * FROM users WHERE id = ?").get(user.id) as User;
-  if (!verifyPassword(current, row.password_hash)) {
-    return reply.status(403).send({ error: "Current password is incorrect" });
+  const hasPasskey = (db.prepare("SELECT COUNT(*) AS c FROM passkeys WHERE user_id = ?").get(user.id) as any).c > 0;
+  const needsStepUp = hasPasskey || Boolean(row.totp_enabled);
+
+  if (needsStepUp) {
+    // Accounts with a second factor must verify fresh (passkey or TOTP) —
+    // the current password alone is no longer enough to rotate it.
+    if (!reauthOk(req, row)) {
+      return reply.status(403).send({ error: "Verify with your passkey or authenticator code to change your password", reauthRequired: true });
+    }
+  } else {
+    const current = String(body.currentPassword ?? "");
+    if (!current || !verifyPassword(current, row.password_hash)) {
+      return reply.status(403).send({ error: "Current password is incorrect" });
+    }
+  }
+  if (verifyPassword(next, row.password_hash)) {
+    return reply.status(400).send({ error: "New password must differ from the current one" });
   }
   db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hashPassword(next), user.id);
   return { ok: true };

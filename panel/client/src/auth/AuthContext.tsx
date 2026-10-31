@@ -87,12 +87,15 @@ export class ApiError extends Error {
 
 export async function api<T = unknown>(
   path: string,
-  opts: { method?: string; body?: unknown; noRedirect?: boolean } = {}
+  opts: { method?: string; body?: unknown; noRedirect?: boolean; headers?: Record<string, string> } = {}
 ): Promise<T> {
   const res = await fetch(path, {
     credentials: "include",
     method: opts.method ?? "GET",
-    headers: opts.body !== undefined ? { "Content-Type": "application/json" } : undefined,
+    headers: {
+      ...(opts.body !== undefined ? { "Content-Type": "application/json" } : {}),
+      ...(opts.headers ?? {}),
+    },
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
   });
   if (res.status === 401 && !opts.noRedirect) {
